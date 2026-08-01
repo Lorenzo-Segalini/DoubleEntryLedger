@@ -22,7 +22,7 @@ Most tutorial ledgers store a balance column and update it. That works until the
 first duplicate request, the first failed transaction, or the first auditor
 asking what the balance was on 30 June. This one is built around the properties
 that make a ledger trustworthy, and each of them is enforced by the database and
-proven by a test rather than promised in a comment:
+proven by tests:
 
 | Property | How it is guaranteed |
 |---|---|
