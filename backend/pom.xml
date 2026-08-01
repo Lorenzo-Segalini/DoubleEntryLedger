@@ -201,6 +201,11 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <configuration>
+          <!-- @{argLine} is late-bound: JaCoCo writes its agent into that same
+               property, and hardcoding argLine here would silently disable
+               coverage. Byte Buddy (via Mockito) self-attaches without this,
+               which the JDK warns about today and will forbid tomorrow. -->
+          <argLine>@{argLine} -XX:+EnableDynamicAgentLoading -Xshare:off</argLine>
           <includes>
             <include>**/*Test.java</include>
             <include>**/*Property.java</include>
@@ -215,6 +220,7 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-failsafe-plugin</artifactId>
         <configuration>
+          <argLine>@{argLine} -XX:+EnableDynamicAgentLoading -Xshare:off</argLine>
           <includes>
             <include>**/*IT.java</include>
           </includes>

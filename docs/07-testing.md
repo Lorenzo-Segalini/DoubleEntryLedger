@@ -145,6 +145,34 @@ rest of the suite already shares, and `@BeforeTry` truncates the journal so each
 try starts empty. This is the one place in the codebase where Spring's test
 support is bypassed, and it is worth knowing why before changing it.
 
+Because the context is hand-built, the container's connection details must be
+passed as **command-line arguments**:
+
+```java
+new SpringApplicationBuilder(LedgerApplication.class)
+        .web(WebApplicationType.NONE)
+        .run("--spring.datasource.url=" + LedgerPostgres.INSTANCE.getJdbcUrl(), …);
+```
+
+Not `SpringApplicationBuilder.properties()`. That method registers *default*
+properties, which sit at the bottom of Spring's precedence order and lose to
+`application.yml` — whose datasource URL falls back to `localhost:5432`.
+
+The consequence is worse than a failed test. This suite truncates the journal
+before every try, so a context pointed at the wrong database destroys data and
+still reports green. That is precisely what happened: the suite passed on a
+developer machine running `pnpm db` — against the Compose database, which it was
+quietly wiping — and only failed in CI, where nothing listens on that port.
+
+`assertConnectedToTheTestContainer()` now runs immediately after the context
+starts and refuses to proceed unless the connection's port matches the
+container's mapped port. A wrong connection has to be a loud failure, never a
+silent one.
+
+> **The general lesson.** A destructive test fixture must verify what it is about
+> to destroy. Any future suite that truncates, deletes or resets shared state
+> belongs behind the same check.
+
 ### Generators
 
 `entries()` produces entries balanced by construction: one to three debit lines

@@ -69,20 +69,52 @@ class LedgerDatabasePropertyIT {
 
     @BeforeContainer
     static void startContext() {
+        // Passed as command-line arguments, NOT via SpringApplicationBuilder
+        // .properties(). That method registers *default* properties, which sit at
+        // the bottom of Spring's precedence order and lose to application.yml —
+        // whose datasource URL falls back to localhost:5432. The context then
+        // silently connects to whatever Postgres happens to be listening there,
+        // which on a developer machine running `pnpm db` is a real database that
+        // this class truncates before every try.
         context = new SpringApplicationBuilder(LedgerApplication.class)
                 .web(WebApplicationType.NONE)
-                .properties(
-                        "spring.datasource.url=" + LedgerPostgres.INSTANCE.getJdbcUrl(),
-                        "spring.datasource.username=" + LedgerPostgres.INSTANCE.getUsername(),
-                        "spring.datasource.password=" + LedgerPostgres.INSTANCE.getPassword(),
-                        "spring.main.banner-mode=off",
-                        "logging.level.root=WARN")
-                .run();
+                .run(
+                        "--spring.datasource.url=" + LedgerPostgres.INSTANCE.getJdbcUrl(),
+                        "--spring.datasource.username=" + LedgerPostgres.INSTANCE.getUsername(),
+                        "--spring.datasource.password=" + LedgerPostgres.INSTANCE.getPassword(),
+                        "--spring.main.banner-mode=off",
+                        "--logging.level.root=WARN");
 
         posting = context.getBean(PostingService.class);
         balances = context.getBean(BalanceQuery.class);
         accounts = context.getBean(AccountRepository.class);
         jdbc = context.getBean(JdbcClient.class);
+
+        assertConnectedToTheTestContainer();
+    }
+
+    /**
+     * Refuses to run against anything but the container.
+     *
+     * <p>This class truncates the journal before every try. Pointed at the wrong
+     * database it would destroy data and still report green, which is exactly what
+     * happened before the fix above — the suite passed locally against the Compose
+     * database and only failed in CI, where nothing listens on localhost:5432.
+     * A wrong connection must be a loud failure, not a silent one.
+     */
+    private static void assertConnectedToTheTestContainer() {
+        String expectedPort = String.valueOf(LedgerPostgres.INSTANCE.getMappedPort(5432));
+        String actualUrl;
+        try (var connection = context.getBean(javax.sql.DataSource.class).getConnection()) {
+            actualUrl = connection.getMetaData().getURL();
+        } catch (java.sql.SQLException e) {
+            throw new IllegalStateException("could not inspect the test datasource", e);
+        }
+
+        if (!actualUrl.contains(":" + expectedPort + "/")) {
+            throw new IllegalStateException("refusing to run: this suite truncates the journal, and the context is "
+                    + "connected to " + actualUrl + " rather than the test container on port " + expectedPort);
+        }
     }
 
     @AfterContainer
