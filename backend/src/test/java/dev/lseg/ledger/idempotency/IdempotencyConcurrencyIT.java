@@ -17,6 +17,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.concurrent.DelegatingSecurityContextExecutorService;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import dev.lseg.ledger.domain.JournalEntry;
 import dev.lseg.ledger.domain.Money;
@@ -53,12 +57,22 @@ class IdempotencyConcurrencyIT extends PostgresIT {
     void setUp() {
         truncateJournal();
         jdbc.sql("DELETE FROM idempotency_record").update();
-        executor = Executors.newFixedThreadPool(THREADS);
+
+        SecurityContextHolder.getContext()
+                .setAuthentication(new UsernamePasswordAuthenticationToken(
+                        "operator@demo.local", "n/a", java.util.List.of(new SimpleGrantedAuthority("ROLE_OPERATOR"))));
+
+        // A SecurityContext lives in a ThreadLocal, so worker threads start
+        // anonymous and every posting would be denied. Wrapping the pool
+        // propagates it — the same thing production has to do for any async work,
+        // which is why this is a wrapper rather than a global inheritable mode.
+        executor = new DelegatingSecurityContextExecutorService(Executors.newFixedThreadPool(THREADS));
     }
 
     @AfterEach
     void tearDown() {
         executor.shutdownNow();
+        SecurityContextHolder.clearContext();
     }
 
     @Test

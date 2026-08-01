@@ -16,6 +16,9 @@ import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import dev.lseg.ledger.LedgerApplication;
 import dev.lseg.ledger.domain.Direction;
@@ -131,6 +134,15 @@ class LedgerDatabasePropertyIT {
      * passing for the wrong reason — the invariants below must hold for the
      * generated history alone, not for it plus whatever ran before.
      */
+    @BeforeTry
+    void authenticateAsOperator() {
+        // @WithMockUser is a Jupiter extension and jqwik does not run those, so
+        // the context is populated by hand. See the class javadoc.
+        SecurityContextHolder.getContext()
+                .setAuthentication(new UsernamePasswordAuthenticationToken(
+                        "operator@demo.local", "n/a", List.of(new SimpleGrantedAuthority("ROLE_OPERATOR"))));
+    }
+
     @BeforeTry
     void emptyTheJournal() {
         jdbc.sql("TRUNCATE journal_line, journal_entry RESTART IDENTITY CASCADE")

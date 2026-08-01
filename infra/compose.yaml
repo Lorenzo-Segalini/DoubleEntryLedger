@@ -37,6 +37,9 @@ services:
       DEMO_OPERATOR_PASSWORD: ${DEMO_OPERATOR_PASSWORD:-demo-operator}
       DEMO_AUDITOR_PASSWORD: ${DEMO_AUDITOR_PASSWORD:-demo-auditor}
       DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-demo-admin}
+      DEMO_SEED_USERS: "true"
+      # Local development is plain HTTP, so a Secure cookie would never be sent.
+      JWT_COOKIE_SECURE: "false"
       # The production JVM flags live in the Dockerfile's ENV and are cleared here:
       # local runs should use a normal JVM, not one tuned for a 512 MB Fly machine.
       JAVA_TOOL_OPTIONS: ''

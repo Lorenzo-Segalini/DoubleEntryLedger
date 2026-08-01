@@ -32,8 +32,24 @@ import org.testcontainers.containers.PostgreSQLContainer;
         // idempotency primary key while holding a connection, so a pool smaller than
         // the thread count turns contention into connection timeouts and hides what
         // the test is meant to measure.
-        properties = {"spring.datasource.hikari.maximum-pool-size=40"})
+        properties = {
+            "spring.datasource.hikari.maximum-pool-size=40",
+            // The API tests authenticate as a real seeded user, because
+            // journal_entry.created_by is a foreign key: an invented principal id
+            // fails at the database, not at the security layer.
+            "ledger.demo.seed-users=true",
+            "ledger.demo.operator-password=test-operator",
+            "ledger.demo.auditor-password=test-auditor",
+            "ledger.demo.admin-password=test-admin"
+        })
 public abstract class PostgresIT {
+
+    /** Ids assigned by {@code DemoUserSeeder}. */
+    public static final java.util.UUID OPERATOR_ID = java.util.UUID.fromString("00000000-0000-0000-0000-0000000000a1");
+
+    public static final java.util.UUID AUDITOR_ID = java.util.UUID.fromString("00000000-0000-0000-0000-0000000000a2");
+
+    public static final java.util.UUID ADMIN_ID = java.util.UUID.fromString("00000000-0000-0000-0000-0000000000a3");
 
     /** Fixed, so "reject postdated entries" is testable without waiting for midnight. */
     public static final Instant NOW = Instant.parse("2026-07-15T10:00:00Z");

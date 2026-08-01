@@ -11,6 +11,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.test.context.support.WithMockUser;
 
 import dev.lseg.ledger.domain.Direction;
 import dev.lseg.ledger.domain.EntrySource;
@@ -22,6 +23,7 @@ import dev.lseg.ledger.domain.Money;
 import dev.lseg.ledger.domain.PostedEntry;
 import dev.lseg.ledger.support.PostgresIT;
 
+@WithMockUser(username = "operator@demo.local", roles = "OPERATOR")
 class PostingServiceIT extends PostgresIT {
 
     private static final Currency EUR = Currency.getInstance("EUR");

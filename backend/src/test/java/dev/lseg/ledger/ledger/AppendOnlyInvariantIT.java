@@ -12,6 +12,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
+import org.springframework.security.test.context.support.WithMockUser;
 
 import dev.lseg.ledger.domain.JournalEntry;
 import dev.lseg.ledger.domain.Money;
@@ -28,6 +29,7 @@ import dev.lseg.ledger.support.PostgresIT;
  * made is stronger than "the application does not do this" — it is "the database
  * will not permit it".
  */
+@WithMockUser(username = "operator@demo.local", roles = "OPERATOR")
 class AppendOnlyInvariantIT extends PostgresIT {
 
     private static final Currency EUR = Currency.getInstance("EUR");
