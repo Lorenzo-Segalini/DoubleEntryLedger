@@ -95,6 +95,14 @@ The endpoint and the authenticated principal are part of the primary key, so a
 key scoped to one client can never interfere with another's, and a key used for
 a transfer cannot short-circuit a reversal.
 
+**The journal's copy carries the same scope.** `journal_entry.idempotency_key`
+stores `principal|endpoint|key`, not the raw key. A safety net has to agree with
+the thing it is backing up: the store treats a request as identified by all
+three, while that index is global. Writing the raw key would make two clients
+that both chose `invoice-1` collide in the journal even though the store
+considers them unrelated — a false conflict that stays invisible while everyone
+uses UUIDs and appears the moment someone uses business-derived keys.
+
 ## 4.5 The `IN_PROGRESS` case
 
 A row exists with `status = 'IN_PROGRESS'` when the original request is still
@@ -129,7 +137,11 @@ Together: the store gives a good answer, the index guarantees a safe one.
 ## 4.7 Retention
 
 Records expire after **24 hours** (`expires_at`), swept by a scheduled job every
-15 minutes. The window comfortably exceeds any realistic client retry schedule
+15 minutes. Both `created_at` and `expires_at` are computed by PostgreSQL from
+its own `now()`: the TTL is passed to the insert as an interval rather than an
+instant. Computing the deadline in Java would have the `expires_at > created_at`
+constraint compare two clocks, and any skew between the application and the
+database would reject a perfectly valid claim. The window comfortably exceeds any realistic client retry schedule
 while keeping the table small.
 
 After expiry the semantics degrade gracefully rather than dangerously: a retry
@@ -170,6 +182,12 @@ tested as behaviour, against a real Postgres via Testcontainers:
    subsequent retry succeeds cleanly with `201`.
 5. **Post-expiry retry** — the record is aged past `expires_at` and swept; the
    retry is rejected by the journal's unique index rather than posting again.
+
+All of the above is example-based and passes against a deliberately naive
+implementation. The concurrency test is the one that does not: replacing the
+atomic claim with a check-then-insert leaves **all ten sequential tests green**
+while six of the eight concurrent ones fail. That gap is the entire argument for
+writing this test with a barrier.
 
 Details in [Testing §7.4](07-testing.md#74-idempotency-under-concurrency).
 

@@ -26,7 +26,13 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * <p>The container is static, so one instance serves the whole suite. Flyway runs
  * against it once, which means these tests exercise the migrations too.
  */
-@SpringBootTest(classes = {dev.lseg.ledger.LedgerApplication.class, PostgresIT.FixedClockConfig.class})
+@SpringBootTest(
+        classes = {dev.lseg.ledger.LedgerApplication.class, PostgresIT.FixedClockConfig.class},
+        // The concurrency suite fires 32 simultaneous requests. Losers block on the
+        // idempotency primary key while holding a connection, so a pool smaller than
+        // the thread count turns contention into connection timeouts and hides what
+        // the test is meant to measure.
+        properties = {"spring.datasource.hikari.maximum-pool-size=40"})
 public abstract class PostgresIT {
 
     /** Fixed, so "reject postdated entries" is testable without waiting for midnight. */

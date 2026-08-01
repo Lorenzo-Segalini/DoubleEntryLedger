@@ -23,6 +23,9 @@ public enum LedgerError {
     BLANK_DESCRIPTION("blank-description", 422),
     DUPLICATE_LINE_ACCOUNT("duplicate-line-account", 422),
     ENTRY_NOT_FOUND("entry-not-found", 404),
+    IDEMPOTENCY_KEY_REQUIRED("idempotency-key-required", 400),
+    IDEMPOTENCY_KEY_CONFLICT("idempotency-key-conflict", 409),
+    IDEMPOTENCY_REQUEST_IN_FLIGHT("idempotency-request-in-flight", 409),
     ALREADY_REVERSED("already-reversed", 409),
     REVERSAL_OF_REVERSAL("reversal-of-reversal", 422);
 
