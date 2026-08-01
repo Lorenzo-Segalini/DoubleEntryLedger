@@ -10,7 +10,8 @@ broken, and CI will not merge a red build.
 | Layer | Tool | Runs against | Count (target) | Wall time |
 |---|---|---|---|---|
 | Domain unit | JUnit 5 + AssertJ | Pure objects, no Spring | ~150 | < 2 s |
-| Property | jqwik | Domain + repository | ~15 properties × 1000 cases | ~30 s |
+| Domain property | jqwik | Pure domain, no Docker | 9 properties × 200–1000 tries | < 1 s |
+| Database property | jqwik + Testcontainers | Real schema and queries | 6 properties × 100–200 tries | ~20 s |
 | Persistence | Testcontainers Postgres | Real schema, real triggers | ~50 | ~40 s |
 | API integration | `@SpringBootTest` + Testcontainers + RestAssured | Full stack, real HTTP | ~70 | ~90 s |
 | Architecture | ArchUnit | Bytecode | ~12 rules | < 5 s |
@@ -24,30 +25,37 @@ production behaviour it claims to verify does not exist. Testcontainers with the
 same Postgres major version as production is the only configuration that means
 anything here.
 
-A single container is reused across the whole integration suite
-(`@Testcontainers` with a static container, `.withReuse(true)` locally). Isolation
-comes from a per-test transaction rollback, except where a test must observe
-commit behaviour — deferred triggers and idempotency conflicts both require real
-commits, so those tests truncate instead.
+One container serves the whole suite, held in a static singleton
+(`support/LedgerPostgres`) and reclaimed by Testcontainers' Ryuk sidecar at JVM
+exit. It is deliberately **not** annotated `@Container`: that extension stops the
+container when its declaring class finishes, while Spring keeps the application
+context cached across classes — the next test class then fails on a dead database.
+
+Isolation is by truncation between tests, not by transaction rollback. The
+balance rule is a `DEFERRABLE INITIALLY DEFERRED` trigger that only fires at
+COMMIT, so a test that never commits never exercises the rule it is testing.
 
 ## 7.2 Invariants as tests
 
 Each invariant maps to a named test class, so a failure report names the
 accounting rule that broke rather than a method:
 
-| Invariant | Test |
-|---|---|
-| I1 entries balance | `EntryBalancesInvariantTest`, `BalancedEntryProperty` |
-| I2 ≥ 2 lines | `MinimumLinesInvariantTest` |
-| I3 positive integer minor units | `MoneyTest`, `NoFloatingPointArchTest` |
-| I4 single currency per entry | `SingleCurrencyEntryInvariantTest` |
-| I5 line currency = account currency | `AccountCurrencyForeignKeyTest` |
-| I6 append-only | `AppendOnlyInvariantTest`, `NoMutatingRepositoryArchTest` |
-| I7 journal nets to zero | `LedgerNetsToZeroProperty`, `LedgerBalanceHealthIndicatorTest` |
-| I8 single reversal | `SingleReversalInvariantTest` (incl. concurrent) |
-| I9 reversal mirrors original | `ReversalMirrorsOriginalTest`, `ReversalRestoresBalanceProperty` |
+| Invariant | Domain | Database |
+|---|---|---|
+| I1 entries balance | `JournalEntryInvariantTest.Balancing`, `LedgerInvariantProperties` | `AppendOnlyInvariantIT.anUnbalancedEntryCannotBeCommitted…` |
+| I2 ≥ 2 lines | `JournalEntryInvariantTest.MinimumLines` | `AppendOnlyInvariantIT.aSingleLineEntryCannotBeCommitted…` |
+| I3 positive integer minor units | `MoneyTest`, `JournalEntryInvariantTest.PositiveAmounts` | `AppendOnlyInvariantIT.aNegativeAmountIsRejected…` |
+| I4 single currency per entry | `JournalEntryInvariantTest.SingleCurrency` | balance trigger (`assert_entry_is_balanced`) |
+| I5 line currency = account currency | `PostingServiceIT.aLineInADifferentCurrency…` | `AppendOnlyInvariantIT.aLineCannotReferenceAnAccountIn…` |
+| I6 append-only | — (no mutator exists) | `AppendOnlyInvariantIT` ×5, incl. the grant matrix |
+| I7 journal nets to zero | `LedgerInvariantProperties.signedAmountsAlwaysSumToZero` | `LedgerDatabasePropertyIT.theWholeJournalAlwaysNetsToZero` |
+| I8 single reversal | — | `PostingServiceIT.anEntryCannotBeReversedTwice` + unique index |
+| I9 reversal mirrors original | `LedgerInvariantProperties.mirroringAnEntry…` | `PostingServiceIT.aReversalMirrorsTheOriginal…`, `LedgerDatabasePropertyIT.reversingEveryEntryRestoresEveryBalance` |
 
-`AppendOnlyInvariantTest` is worth spelling out, because it tests the database
+Every row above exists and passes today. Rows for the API and reconciliation
+layers will join it as those land; nothing is listed here before it is written.
+
+`AppendOnlyInvariantIT` is worth spelling out, because it tests the database
 rather than the code:
 
 ```java
@@ -74,58 +82,96 @@ void theApplicationRoleHoldsNoUpdateOrDeleteGrant() {
 }
 ```
 
-The third test asserts the *grant matrix*, not behaviour. A future migration
+The last test asserts the *grant matrix*, not behaviour. A future migration
 that widens permissions fails CI even if no code path uses the new privilege —
 which is the point, since the danger of a broad grant is the code that does not
 exist yet.
 
 ## 7.3 Property-based testing
 
-Example-based tests check the cases you thought of. Properties check the ones
-you did not. jqwik generates thousands of random-but-valid histories and asserts
-the invariants survive all of them.
+Example-based tests check the cases you thought of. Properties check the ones you
+did not. jqwik generates random-but-valid histories and asserts the invariants
+survive all of them.
+
+There are two property suites, split by what they can reach:
+
+| Suite | Runs on | Asserts against |
+|---|---|---|
+| `LedgerInvariantProperties` | Surefire, no Docker | The domain model in isolation |
+| `LedgerDatabasePropertyIT` | Failsafe, Testcontainers | The real schema, triggers and queries |
+
+### Domain properties
+
+Pure objects, no Spring, milliseconds to run: every constructed entry balances,
+signed amounts sum to zero, mirroring an entry produces the exact opposite
+movement, perturbing any line by any non-zero amount makes the entry
+unconstructible, and `balanceSign` is its own inverse.
+
+### Database properties
 
 ```java
-@Property(tries = 1000)
-void theLedgerAlwaysNetsToZero(@ForAll("validEntries") List<JournalEntry> history) {
-    history.forEach(postingService::post);
+@Property(tries = 200)
+void theWholeJournalAlwaysNetsToZero(@ForAll("histories") List<JournalEntry> history) {
+    history.forEach(entry -> posting.post(entry, context()));
 
-    assertThat(jdbc.queryForObject(
-            "SELECT COALESCE(SUM(signed_amount_minor), 0) FROM journal_line", Long.class))
-        .isZero();
+    // Non-vacuity guard: a sum over an empty journal is also zero.
+    assertThat(countEntries()).isEqualTo(history.size());
+
+    assertThat(balances.outOfBalanceMinor()).isZero();
 }
 
-@Property(tries = 1000)
-void reversingAnEntryRestoresEveryAffectedBalance(@ForAll("validEntry") JournalEntry entry) {
-    Map<UUID, Long> before = balancesOf(entry.accountIds());
-    UUID posted = postingService.post(entry).id();
+@Property(tries = 100)
+void historicalBalancesAreStableAsNewEntriesArrive(@ForAll("histories") List<JournalEntry> history) {
+    history.forEach(entry -> posting.post(entry, context()));
+    Map<String, Long> asOfCutoff = snapshotBalancesAsOf(cutoff);
 
-    postingService.reverse(posted, "property test");
+    history.forEach(entry -> posting.post(entry, context()));
 
-    assertThat(balancesOf(entry.accountIds())).isEqualTo(before);
-}
-
-@Property(tries = 1000)
-void derivedBalanceEqualsTheSumOfMovements(@ForAll("validEntries") List<JournalEntry> history,
-                                           @ForAll("account") Account account) {
-    history.forEach(postingService::post);
-
-    assertThat(balanceQuery.asOf(account.id(), LocalDate.MAX).signedMinor())
-        .isEqualTo(movementQuery.all(account.id()).stream()
-                                .mapToLong(Movement::signedAmountMinor).sum());
+    assertThat(snapshotBalancesAsOf(cutoff)).isEqualTo(asOfCutoff);
 }
 ```
 
-The generators are the interesting part. `validEntries` produces entries by
-construction — random account pairs, random amounts, then a balancing line
-computed as the negation of the rest — so the suite explores the space of *legal*
-histories rather than wasting cases on inputs the API would reject at the door.
-A complementary `invalidEntries` generator asserts every one of them is refused.
+Also asserted: a derived balance equals a raw sum over the same account's lines
+(two independent paths to one number — the claim ADR-0003 rests on), reversing
+every entry restores every balance while doubling the entry count rather than
+erasing anything, the trial balance sums to zero, and every line carries its
+entry's effective date so the denormalised copy cannot drift.
 
-Generation is deliberately hostile: amounts near `Long.MAX_VALUE` to provoke
-overflow, entries with up to 20 lines, effective dates spanning decades,
-currencies with 0/2/3 decimal exponents, and long chains of postings against the
-same account.
+**These are not `@SpringBootTest` classes.** jqwik runs on its own JUnit Platform
+engine and does not process Jupiter extensions, so `SpringExtension` — and with
+it `@SpringBootTest`, `@Autowired` and `@ServiceConnection` — has no effect. The
+context is built by hand in a `@BeforeContainer` hook against the container the
+rest of the suite already shares, and `@BeforeTry` truncates the journal so each
+try starts empty. This is the one place in the codebase where Spring's test
+support is bypassed, and it is worth knowing why before changing it.
+
+### Generators
+
+`entries()` produces entries balanced by construction: one to three debit lines
+against a single credit line absorbing their total. That shape is deliberate — it
+mirrors the settlement-plus-fee case that makes a two-line-only model wrong,
+rather than a plain transfer. Dates land anywhere in the past 400 days.
+
+Overflow at `Long.MAX_VALUE` is deliberately *not* generated: summing twenty such
+lines would throw inside the generator rather than inside a property, testing the
+fixture instead of the domain. That boundary has targeted assertions in
+`MoneyTest`.
+
+### Non-vacuity, and proof the properties have teeth
+
+A property that passes trivially is worse than no property, so two things guard
+against it. The properties assert the journal is actually non-empty and at least
+one balance actually moved before comparing anything.
+
+And the suite was checked by deliberately breaking the code:
+
+| Injected defect | Caught by |
+|---|---|
+| `Direction.CREDIT` sign flipped to `+1` | 6 of 9 domain properties |
+| Balance query's date filter moved from `ON` to `WHERE` — the classic reporting bug | 3 of 6 database properties, plus 2 example-based tests |
+
+The second one matters most: it is a defect invisible to the domain model, which
+only the database-level properties could find.
 
 ## 7.4 Idempotency under concurrency
 
