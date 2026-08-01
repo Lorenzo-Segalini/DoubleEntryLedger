@@ -106,8 +106,15 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Opening balances.
-SELECT seed_entry('seed:opening-2026-06', DATE '2026-06-01', 'Opening balances', '[
+-- Opening balances, dated the day *before* the period they open.
+--
+-- Dated inside the period instead, they read to the reconciliation engine as an
+-- ordinary June movement, while the bank statement treats the same money as an
+-- opening balance. The bridge still closes — the two appear as equal and opposite
+-- rows that cancel — but a report showing a 41,065.00 timing difference against a
+-- 41,065.00 opening mismatch looks like a defect even though the arithmetic is
+-- right. Demo data is read by people, so it should not need that explanation.
+SELECT seed_entry('seed:opening-2026-06', DATE '2026-05-31', 'Opening balances', '[
     {"code": "1000", "direction": "DEBIT",  "amount": 4106500, "memo": "opening cash"},
     {"code": "3000", "direction": "CREDIT", "amount": 4106500, "memo": "opening equity"}
 ]'::jsonb);

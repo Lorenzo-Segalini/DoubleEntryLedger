@@ -17,6 +17,7 @@ broken, and CI will not merge a red build.
 | Architecture | ArchUnit | Bytecode | ~12 rules | < 5 s |
 | Concurrency | JUnit 5 + `CyclicBarrier` + Testcontainers | Real contention on the idempotency key | 8 | ~1 s |
 | Security | MockMvc + real login | Tokens, roles, rotation, reuse detection | 19 | ~5 s |
+| Reconciliation | Testcontainers + jqwik | Matching, classification, the bridge invariant | 39 | ~20 s |
 | Frontend unit/component | Vitest + Testing Library + MSW | Components | ~120 | ~20 s |
 | E2E | Playwright | Compose stack | ~15 flows | ~3 min |
 
@@ -203,6 +204,7 @@ And the suite was checked by deliberately breaking the code:
 | Jackson's default `ACCEPT_FLOAT_AS_INT` (found, not injected): `125.50` truncating to `125` minor units | 1 API test — the only layer where it was reachable |
 | Audit rows rolled back with the failure they recorded — `@Transactional` on a self-invoked method does nothing (found, not injected) | 1 auth test |
 | Refresh-token family revocation rolled back by the exception that triggered it, so reuse detection revoked nothing (found, not injected) | 1 auth test |
+| `BreakClassifier` delta sign flipped on unmatched journal lines | the bridge property, plus 3 example-based reconciliation tests |
 
 The last two are worth dwelling on. Both compiled, both read correctly, and both
 silently did the opposite of what their own comments claimed. Neither is
