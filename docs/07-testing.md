@@ -15,6 +15,7 @@ broken, and CI will not merge a red build.
 | Persistence | Testcontainers Postgres | Real schema, real triggers | ~50 | ~40 s |
 | API integration | `@SpringBootTest` + Testcontainers + RestAssured | Full stack, real HTTP | ~70 | ~90 s |
 | Architecture | ArchUnit | Bytecode | ~12 rules | < 5 s |
+| Concurrency | JUnit 5 + `CyclicBarrier` + Testcontainers | Real contention on the idempotency key | 8 | ~1 s |
 | Frontend unit/component | Vitest + Testing Library + MSW | Components | ~120 | ~20 s |
 | E2E | Playwright | Compose stack | ~15 flows | ~3 min |
 
@@ -197,9 +198,13 @@ And the suite was checked by deliberately breaking the code:
 |---|---|
 | `Direction.CREDIT` sign flipped to `+1` | 6 of 9 domain properties |
 | Balance query's date filter moved from `ON` to `WHERE` — the classic reporting bug | 3 of 6 database properties, plus 2 example-based tests |
+| Atomic claim replaced with check-then-insert | 6 of 8 concurrency tests — and **0 of 10** sequential idempotency tests |
 
-The second one matters most: it is a defect invisible to the domain model, which
-only the database-level properties could find.
+The second matters because it is invisible to the domain model: only the
+database-level properties could find it. The third matters more. A naive
+idempotency implementation passes every sequential test ever written for it, and
+fails only under genuine contention — which is precisely how it would reach
+production and post somebody's money twice.
 
 ## 7.4 Idempotency under concurrency
 
