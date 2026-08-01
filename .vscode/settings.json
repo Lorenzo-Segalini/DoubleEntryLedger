@@ -1,13 +1,16 @@
 {
-  // Java 21 is required by pom.xml. Adjust the path if your JDK lives elsewhere;
-  // `/usr/libexec/java_home -v 21` prints it on macOS.
-  "java.configuration.runtimes": [
-    {
-      "name": "JavaSE-21",
-      "path": "/opt/homebrew/opt/openjdk@21",
-      "default": true
-    }
-  ],
+  // No JDK path is hardcoded here. This file is committed and shared, and an
+  // absolute path is by definition specific to one machine and one OS —
+  // /opt/homebrew/... is meaningless on Linux or Windows.
+  //
+  // The Java extension resolves its JDK from JDK_HOME, then JAVA_HOME, then
+  // PATH. Setting JAVA_HOME correctly (docs/00-local-setup.md §0.2) therefore
+  // configures the editor and the Maven wrapper at once, on every platform.
+  //
+  // Caveat: an editor launched from a desktop icon does not inherit shell
+  // environment. Either launch it with `code .` from a configured terminal, or
+  // set `java.configuration.runtimes` in your *user* settings — which is where a
+  // machine-specific path belongs.
   "java.compile.nullAnalysis.mode": "automatic",
   "java.configuration.updateBuildConfiguration": "automatic",
 
@@ -24,8 +27,11 @@
     "**/node_modules": true,
     "**/pnpm-lock.yaml": true
   },
-  "typescript.tsdk": "frontend/node_modules/typescript/lib",
+
+  "js/ts.tsdk.path": "frontend/node_modules/typescript/lib",
   "editor.codeActionsOnSave": { "source.fixAll.oxc": "explicit" },
   "[typescript]": { "editor.formatOnSave": true },
-  "[typescriptreact]": { "editor.formatOnSave": true }
+  "[typescriptreact]": { "editor.formatOnSave": true },
+
+  "files.eol": "\n"
 }
