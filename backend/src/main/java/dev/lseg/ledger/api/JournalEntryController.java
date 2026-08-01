@@ -1,6 +1,7 @@
 package dev.lseg.ledger.api;
 
 import java.net.URI;
+import java.time.LocalDate;
 import java.util.Currency;
 import java.util.List;
 import java.util.Map;
@@ -9,6 +10,7 @@ import java.util.UUID;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -16,6 +18,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import dev.lseg.ledger.domain.Direction;
@@ -27,6 +30,9 @@ import dev.lseg.ledger.domain.LedgerException;
 import dev.lseg.ledger.domain.Money;
 import dev.lseg.ledger.domain.PostedEntry;
 import dev.lseg.ledger.idempotency.IdempotentOutcome;
+import dev.lseg.ledger.ledger.EntryCursor;
+import dev.lseg.ledger.ledger.EntryPage;
+import dev.lseg.ledger.ledger.JournalFilter;
 import dev.lseg.ledger.ledger.JournalRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -78,6 +84,28 @@ class JournalEntryController {
                 request.reason(),
                 request.effectiveDate());
         return respond(outcome);
+    }
+
+    @GetMapping
+    @Operation(
+            summary = "Browse the journal, most recent first",
+            description = "Cursor-paginated. Offset pagination over an append-only ledger repeats or skips rows as "
+                    + "entries arrive mid-read, so it is not offered.")
+    PageResponse<EntryResponse> list(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) UUID accountId,
+            @RequestParam(required = false) EntrySource source,
+            @RequestParam(required = false) String externalRef,
+            @RequestParam(required = false, defaultValue = "50") int limit,
+            @RequestParam(required = false) String cursor) {
+
+        EntryPage page = journal.findPage(
+                new JournalFilter(from, to, accountId, source, externalRef, limit),
+                cursor == null || cursor.isBlank() ? null : EntryCursor.decode(cursor));
+
+        return new PageResponse<>(
+                page.items().stream().map(EntryResponse::of).toList(), page.nextCursor(), page.hasMore());
     }
 
     @GetMapping("/{id}")

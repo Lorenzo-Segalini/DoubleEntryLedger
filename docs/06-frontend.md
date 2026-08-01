@@ -157,9 +157,19 @@ gating is ergonomics, never security.
 
 - **Unit** — `money.ts` gets exhaustive tests including JPY (0 decimals) and TND
   (3), parse rejection, and overflow at `Number.MAX_SAFE_INTEGER`.
-- **Component** — Vitest + Testing Library against MSW handlers generated from
-  the OpenAPI schema, so a backend contract change breaks the frontend tests in
-  CI rather than in production.
+- **Component** — Vitest + Testing Library against MSW, which intercepts at the
+  network layer rather than replacing modules. That distinction is what makes
+  them worth having: the real fetch, the real headers and the real
+  401-then-refresh path all execute, where mocking the client module would only
+  prove a component calls a function. MSW runs with
+  `onUnhandledRequest: 'error'`, so a call nobody declared fails the test instead
+  of quietly returning a network error.
+
+  Forty tests covering the parts most likely to be wrong: the single-flight
+  refresh, minor-unit arithmetic in the posting form, idempotency keys surviving
+  a double click and rotating after a success, cursor pagination following the
+  server's token rather than counting pages, and the auditor being offered no
+  write controls.
 - **E2E** — Playwright against a real backend and PostgreSQL in Docker Compose,
   in `e2e/backoffice.spec.ts`. Twelve flows: signing in and being refused, a
   reload surviving on the refresh cookie alone, posting a balanced entry and

@@ -23,6 +23,7 @@ public enum LedgerError {
     BLANK_DESCRIPTION("blank-description", 422),
     DUPLICATE_LINE_ACCOUNT("duplicate-line-account", 422),
     ENTRY_NOT_FOUND("entry-not-found", 404),
+    INVALID_CURSOR("invalid-cursor", 400),
     STATEMENT_NOT_READABLE("statement-not-readable", 422),
     STATEMENT_NOT_INTERNALLY_CONSISTENT("statement-not-internally-consistent", 422),
     RECONCILIATION_NOT_FOUND("reconciliation-not-found", 404),

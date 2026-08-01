@@ -29,4 +29,13 @@ public interface JournalRepository {
     Optional<PostedEntry> findByExternalRef(String externalRef);
 
     Optional<UUID> findReversalOf(UUID entryId);
+
+    /**
+     * One page of the journal, most recent first.
+     *
+     * <p>Seeks past {@code after} rather than skipping a count, so entries
+     * arriving mid-read cannot shift the window and make a row appear twice or
+     * not at all.
+     */
+    EntryPage findPage(JournalFilter filter, EntryCursor after);
 }

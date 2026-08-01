@@ -86,7 +86,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Browse the journal, most recent first
+         * @description Cursor-paginated. Offset pagination over an append-only ledger repeats or skips rows as entries arrive mid-read, so it is not offered.
+         */
+        get: operations["list_1"];
         put?: never;
         /**
          * Post a journal entry
@@ -563,6 +567,11 @@ export interface components {
             /** Format: date-time */
             resolvedAt?: string;
         };
+        PageResponseEntryResponse: {
+            items?: components["schemas"]["EntryResponse"][];
+            nextCursor?: string;
+            hasMore?: boolean;
+        };
         MeResponse: {
             /** Format: uuid */
             id?: string;
@@ -738,6 +747,34 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    list_1: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+                accountId?: string;
+                source?: "API" | "TRANSFER" | "REVERSAL" | "IMPORT" | "ADJUSTMENT" | "SEED";
+                externalRef?: string;
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageResponseEntryResponse"];
+                };
             };
         };
     };

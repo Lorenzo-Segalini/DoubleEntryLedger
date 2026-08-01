@@ -20,6 +20,7 @@ export type MeResponse = Schemas['MeResponse']
 export type ReconciliationReport = Schemas['ReconciliationReport']
 export type BridgeRow = Schemas['BridgeRow']
 export type ReconciliationBreak = Schemas['ReconciliationBreak']
+export type PageResponseEntry = Schemas['PageResponseEntryResponse']
 export type StatementImport = Schemas['StatementImport']
 
 export type PostEntryRequest = Schemas['PostEntryRequest']

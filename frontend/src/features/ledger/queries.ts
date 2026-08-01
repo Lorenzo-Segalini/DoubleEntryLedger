@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
 import type {
   AccountResponse,
@@ -6,6 +6,7 @@ import type {
   EntryResponse,
   PostEntryRequest,
   TransferRequest,
+  PageResponseEntry,
   TrialBalanceResponse,
 } from '@/api/types'
 
@@ -43,6 +44,44 @@ export function useTrialBalance(asOf: string) {
     queryKey: keys.trialBalance(asOf),
     queryFn: ({ signal }) =>
       api.get<TrialBalanceResponse>(`/api/v1/reports/trial-balance?asOf=${asOf}`, signal),
+  })
+}
+
+/**
+ * `| undefined` throughout: clearing a filter sets it to undefined rather than
+ * deleting the key, and exactOptionalPropertyTypes treats those as different.
+ */
+export interface JournalFilters {
+  from?: string | undefined
+  to?: string | undefined
+  accountId?: string | undefined
+  source?: string | undefined
+  externalRef?: string | undefined
+}
+
+/**
+ * Browses the journal, most recent first.
+ *
+ * `useInfiniteQuery` rather than a page number: the server issues an opaque
+ * cursor because offset pagination over an append-only ledger repeats or skips
+ * rows as entries arrive mid-read. Passing that cursor straight through is the
+ * whole integration — there is no page arithmetic to get wrong here.
+ */
+export function useJournal(filters: JournalFilters, limit = 25) {
+  return useInfiniteQuery({
+    queryKey: ['entries', 'list', filters, limit] as const,
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam, signal }) => {
+      const params = new URLSearchParams({ limit: String(limit) })
+      for (const [key, value] of Object.entries(filters)) {
+        if (value) params.set(key, value)
+      }
+      if (pageParam) params.set('cursor', pageParam)
+      return api.get<PageResponseEntry>(`/api/v1/journal-entries?${params}`, signal)
+    },
+    // Undefined stops the fetching, so an absent cursor ends the list without
+    // the UI having to infer it from a short page.
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
   })
 }
 

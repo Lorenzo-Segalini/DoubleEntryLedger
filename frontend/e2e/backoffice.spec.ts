@@ -127,6 +127,38 @@ test.describe('posting', () => {
   })
 })
 
+test.describe('browsing the journal', () => {
+  test('lists entries most recent first and pages by cursor', async ({ page }) => {
+    await signIn(page, 'operator')
+    await page.goto('/entries')
+
+    await expect(page.getByRole('heading', { name: 'Journal' })).toBeVisible()
+    await expect(page.locator('tbody tr').first()).toBeVisible()
+
+    // Either there is more and the button loads it, or the list says it ended.
+    // Both are correct; what must not happen is a dead button.
+    const more = page.getByRole('button', { name: 'Load more' })
+    if (await more.isVisible()) {
+      const before = await page.locator('tbody tr').count()
+      await more.click()
+      await expect(page.locator('tbody tr')).not.toHaveCount(before)
+    } else {
+      await expect(page.getByText('End of the journal.')).toBeVisible()
+    }
+  })
+
+  test('filters by source', async ({ page }) => {
+    await signIn(page, 'operator')
+    await page.goto('/entries')
+
+    await page.getByLabel('Source').selectOption('SEED')
+    await expect(page.locator('tbody tr').first()).toBeVisible()
+    // Every visible row is a seeded entry.
+    const sources = await page.locator('tbody tr td:nth-child(4)').allInnerTexts()
+    expect(new Set(sources)).toEqual(new Set(['SEED']))
+  })
+})
+
 test.describe('the auditor', () => {
   test('can read everything and is offered nothing to change', async ({ page }) => {
     await signIn(page, 'auditor')
