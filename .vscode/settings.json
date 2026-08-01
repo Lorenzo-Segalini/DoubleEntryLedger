@@ -1,0 +1,31 @@
+{
+  // Java 21 is required by pom.xml. Adjust the path if your JDK lives elsewhere;
+  // `/usr/libexec/java_home -v 21` prints it on macOS.
+  "java.configuration.runtimes": [
+    {
+      "name": "JavaSE-21",
+      "path": "/opt/homebrew/opt/openjdk@21",
+      "default": true
+    }
+  ],
+  "java.compile.nullAnalysis.mode": "automatic",
+  "java.configuration.updateBuildConfiguration": "automatic",
+
+  // Spotless is the authority on Java style (./mvnw spotless:apply), so the
+  // editor must not reformat on save and start a fight with it.
+  "[java]": { "editor.formatOnSave": false },
+
+  "files.exclude": {
+    "**/target": true,
+    "**/node_modules": true
+  },
+  "search.exclude": {
+    "**/target": true,
+    "**/node_modules": true,
+    "**/pnpm-lock.yaml": true
+  },
+  "typescript.tsdk": "frontend/node_modules/typescript/lib",
+  "editor.codeActionsOnSave": { "source.fixAll.oxc": "explicit" },
+  "[typescript]": { "editor.formatOnSave": true },
+  "[typescriptreact]": { "editor.formatOnSave": true }
+}

@@ -1,0 +1,77 @@
+# ---------- Java / Maven ----------
+target/
+*.class
+*.jar
+*.war
+!**/.mvn/wrapper/maven-wrapper.jar
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+dependency-reduced-pom.xml
+release.properties
+pom.xml.versionsBackup
+
+# ---------- Node ----------
+node_modules/
+dist/
+dist-ssr/
+build/
+.vite/
+*.tsbuildinfo
+.pnpm-store/
+.pnpm-debug.log*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ---------- Test & coverage ----------
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+blob-report/
+.playwright/
+**/target/site/jacoco/
+.testcontainers.properties
+
+# ---------- Environment & secrets ----------
+.env
+.env.*
+!.env.example
+!**/.env.example
+*.pem
+*.key
+!**/src/test/resources/**/*.pem
+secrets/
+
+# ---------- IDE ----------
+.idea/
+!.idea/runConfigurations/
+*.iml
+*.ipr
+*.iws
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+.settings/
+.project
+.classpath
+.factorypath
+.apt_generated/
+nbproject/private/
+*.swp
+*~
+
+# ---------- macOS ----------
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# ---------- Tooling ----------
+.flyctl/
+.vercel/
+.neon/
+*.log
+logs/

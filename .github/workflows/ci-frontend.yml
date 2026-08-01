@@ -1,0 +1,40 @@
+name: ci-frontend
+
+on:
+  push:
+    branches: [main]
+    paths: ['frontend/**', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.github/workflows/ci-frontend.yml']
+  pull_request:
+    paths: ['frontend/**', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.github/workflows/ci-frontend.yml']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm --filter frontend test:coverage
+
+      # A build failure should fail CI, not surprise us on Vercel.
+      - name: Build
+        run: pnpm build

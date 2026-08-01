@@ -1,0 +1,16 @@
+# Local development.
+#
+# The datasource is deliberately NOT redefined here: application.yml already
+# reads ${DATABASE_URL} with a localhost default, which covers both ways of
+# running locally — from the IDE against `pnpm db`, and inside compose.yaml
+# where DATABASE_URL points at the `postgres` service. Hardcoding localhost
+# here would override the container's value and break `pnpm up`.
+
+ledger:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+
+logging:
+  level:
+    dev.lseg.ledger: DEBUG
+    org.springframework.jdbc.core: DEBUG
