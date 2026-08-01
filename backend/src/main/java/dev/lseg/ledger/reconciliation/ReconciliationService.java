@@ -426,8 +426,11 @@ public class ReconciliationService {
                     .formatted(data.get("differenceMinor"));
             case CURRENCY_MISMATCH -> "Statement line is in %s, which this account does not hold"
                     .formatted(data.get("statementCurrency"));
-            case OPENING_BALANCE_MISMATCH -> "The period opened at %s in the journal and %s on the statement — the previous period is unreconciled"
-                    .formatted(data.get("ledgerOpeningMinor"), data.get("statementOpeningMinor"));
+                // No raw minor units in the sentence: the delta column beside it already
+                // shows the amount, formatted with the currency's own exponent. A
+                // description printing 4106500 next to a column reading €41,065.00
+                // reads as two different figures.
+            case OPENING_BALANCE_MISMATCH -> "The journal and the statement disagree about the opening balance — the previous period is unreconciled";
         };
     }
 

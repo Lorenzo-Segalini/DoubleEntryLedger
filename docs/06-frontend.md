@@ -160,11 +160,17 @@ gating is ergonomics, never security.
 - **Component** — Vitest + Testing Library against MSW handlers generated from
   the OpenAPI schema, so a backend contract change breaks the frontend tests in
   CI rather than in production.
-- **E2E** — Playwright against a real backend and Postgres in Docker Compose:
-  log in as operator, post a balanced entry, verify the balance moved by exactly
-  that amount, attempt an unbalanced entry and assert the error, reverse an
-  entry and verify the balance returns, log in as auditor and assert the post
-  controls are absent from the DOM.
+- **E2E** — Playwright against a real backend and PostgreSQL in Docker Compose,
+  in `e2e/backoffice.spec.ts`. Twelve flows: signing in and being refused, a
+  reload surviving on the refresh cookie alone, posting a balanced entry and
+  watching the balance move, an unbalanced entry refused with the amount it is
+  out by, a correction that leaves both entries readable, the auditor finding no
+  write controls in the DOM and no way to reach them by URL, and a reconciliation
+  whose bridge closes.
+
+  Run by `.github/workflows/e2e.yml` on every push to either side — the one
+  workflow without a path filter, because catching frontend/backend drift is its
+  whole purpose.
 - **Accessibility** — `axe-core` in the Playwright run; keyboard-navigable
   tables and forms are a requirement, not a nice-to-have, for a data-entry tool.
 

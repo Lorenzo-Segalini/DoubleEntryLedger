@@ -18,6 +18,11 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    // Vitest and Playwright both claim *.spec.ts by default. Without this,
+    // Vitest picks up the end-to-end specs, imports @playwright/test, and fails
+    // on a `page` fixture that only its own runner provides.
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    exclude: ['e2e/**', 'node_modules/**'],
     setupFiles: ['./src/test/setup.ts'],
     globals: true,
     css: false,
