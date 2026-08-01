@@ -55,9 +55,16 @@ replays, `409` for a genuine conflict (idempotency key reuse, double reversal),
 `422` for a request that is well-formed JSON but violates a domain rule, `400`
 only for malformed syntax.
 
-**Pagination** is cursor-based on `(effective_date, sequence_no)`. Offset
-pagination over an append-only ledger produces duplicates and gaps as new
-entries arrive, so it is not offered.
+**Pagination** is cursor-based on `(effective_date, sequence_no)` — the same pair
+the index is built on, so seeking is a range scan rather than a sort, and
+`sequence_no` breaks the ties that arise because entries routinely share an
+effective date.
+
+Offset pagination over an append-only ledger is wrong in a way that looks fine in
+testing: entries arrive while a user reads, every row shifts down, and page two
+repeats rows from page one or skips them. `JournalPaginationIT` asserts exactly
+that scenario — read a page, post five newer entries, read the rest — and
+requires no row to appear twice or vanish.
 
 ```json
 { "items": [ ... ], "nextCursor": "eyJkIjoiMjAyNi0wNi0zMCIsInMiOjQwMTJ9", "hasMore": true }
@@ -269,10 +276,29 @@ original, so it cannot be a partial or subtly different cancellation.
 ### Reading entries
 
 ```
-GET /api/v1/journal-entries            ?from=&to=&accountId=&source=&externalRef=&cursor=
+GET /api/v1/journal-entries            ?from=&to=&accountId=&source=&externalRef=&limit=&cursor=
 GET /api/v1/journal-entries/{id}
 GET /api/v1/journal-entries/{id}/audit
 ```
+
+The list is cursor-paginated, most recent first:
+
+```json
+{ "items": [ … ], "nextCursor": "MjAyNi0wNi0zMHw0MDEy", "hasMore": true }
+```
+
+`nextCursor` is absent on the last page, so a caller never infers the end from a
+short page — a page can be short because the limit was odd, or full and final.
+`limit` defaults to 50 and is **capped** at 200 rather than rejected: a caller
+asking for 10,000 wants as many as they can have, and refusing outright only
+makes them retry.
+
+`accountId` matches entries with at least one line on that account, using
+`EXISTS` rather than a join, so an entry touching the account twice still appears
+once.
+
+A malformed cursor is a `400`, not a silent restart from the beginning — which
+would look to a user like the list resetting itself.
 
 `/audit` returns the full provenance of one entry: creator, role, request id,
 idempotency key, source, the reversal relationship in both directions, and the

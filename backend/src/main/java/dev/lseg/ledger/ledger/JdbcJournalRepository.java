@@ -182,6 +182,68 @@ class JdbcJournalRepository implements JournalRepository {
                 .optional();
     }
 
+    @Override
+    public EntryPage findPage(JournalFilter filter, EntryCursor after) {
+        StringBuilder sql = new StringBuilder(SELECT_ENTRY).append(" WHERE 1 = 1 ");
+        Map<String, Object> params = new java.util.HashMap<>();
+
+        if (after != null) {
+            // A row-value comparison, not two ORed predicates: it reads as the
+            // single "everything before this position" it is, and PostgreSQL can
+            // satisfy it from (effective_date, sequence_no) as one range scan.
+            sql.append(" AND (effective_date, sequence_no) < (:cursorDate, :cursorSeq) ");
+            params.put("cursorDate", after.effectiveDate());
+            params.put("cursorSeq", after.sequenceNo());
+        }
+        if (filter.from() != null) {
+            sql.append(" AND effective_date >= :from ");
+            params.put("from", filter.from());
+        }
+        if (filter.to() != null) {
+            sql.append(" AND effective_date <= :to ");
+            params.put("to", filter.to());
+        }
+        if (filter.source() != null) {
+            sql.append(" AND source = CAST(:source AS entry_source) ");
+            params.put("source", filter.source().name());
+        }
+        if (filter.externalRef() != null && !filter.externalRef().isBlank()) {
+            sql.append(" AND external_ref = :externalRef ");
+            params.put("externalRef", filter.externalRef());
+        }
+        if (filter.accountId() != null) {
+            // EXISTS rather than a join: an entry with two lines on the account
+            // must appear once, and a join would return it twice.
+            sql.append(" AND EXISTS (SELECT 1 FROM journal_line l "
+                    + "WHERE l.entry_id = journal_entry.id AND l.account_id = :accountId) ");
+            params.put("accountId", filter.accountId());
+        }
+
+        sql.append(" ORDER BY effective_date DESC, sequence_no DESC LIMIT :limit ");
+        // One more than asked for: the extra row is how we know there is a next
+        // page without a second COUNT query over the whole table.
+        params.put("limit", filter.limit() + 1);
+
+        var spec = jdbc.sql(sql.toString());
+        for (Map.Entry<String, Object> param : params.entrySet()) {
+            spec = spec.param(param.getKey(), param.getValue());
+        }
+
+        List<PostedEntry> rows = spec.query(this::mapEntryWithoutLines).list();
+
+        boolean hasMore = rows.size() > filter.limit();
+        List<PostedEntry> page = (hasMore ? rows.subList(0, filter.limit()) : rows)
+                .stream().map(this::withLines).toList();
+
+        String nextCursor = null;
+        if (hasMore && !page.isEmpty()) {
+            PostedEntry last = page.getLast();
+            nextCursor = new EntryCursor(last.effectiveDate(), last.sequenceNo()).encode();
+        }
+
+        return new EntryPage(page, nextCursor, hasMore);
+    }
+
     private PostedEntry withLines(PostedEntry entry) {
         List<PostedLine> lines = jdbc.sql(SELECT_LINES)
                 .param("entryId", entry.id())

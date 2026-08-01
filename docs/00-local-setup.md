@@ -202,7 +202,7 @@ Three ways to run, in increasing order of realism:
 **Database only, app from your IDE** — the fastest inner loop:
 
 ```bash
-pnpm db                    # PostgreSQL on :5432
+pnpm stack:db                    # PostgreSQL on :5432
 pnpm backend:run           # Spring Boot on :8080, profile `local`
 pnpm dev                   # Vite on :5173
 ```
@@ -210,8 +210,8 @@ pnpm dev                   # Vite on :5173
 **Everything in Docker** — matches CI and production:
 
 ```bash
-pnpm up                    # postgres + backend + frontend, waits for health
-pnpm down                  # stop
+pnpm stack:up                    # postgres + backend + frontend, waits for health
+pnpm stack:down                  # stop
 ```
 
 **Tests:**
@@ -305,6 +305,7 @@ repository prompts to install them.
 | Tests unusually slow on Apple Silicon | x86_64 JDK under Rosetta | Check `file "$JAVA_HOME/bin/java"`, install an arm64 JDK |
 | Port 5432 already in use | A host PostgreSQL is running | `POSTGRES_PORT=5433` in `infra/.env` |
 | Spotless fails the build | Formatting drift | `cd backend && ./mvnw spotless:apply` |
+| `pnpm up` updates dependencies instead of starting the stack | `up` is pnpm's own alias for `update`, and a built-in wins over a script of the same name | Use `pnpm stack:up`. The stack scripts are namespaced for exactly this reason |
 | `Unresolved compilation problems: The type java.lang.Object cannot be resolved` from `./mvnw` | VS Code's Java language server is compiling into the same `target/` with a misconfigured JDK, and its broken class files race Maven's | Point `java.configuration.runtimes` at a **real** JDK home (one with `release` and `lib/modules`), not Homebrew's keg prefix, then reload the VS Code window |
 | `401` on `/swagger-ui.html` | Expected while the skeleton has no `SecurityConfig` — Spring Security denies everything by default | Resolved when `dev.lseg.ledger.security` lands ([ADR-0007](adr/0007-jwt-authentication-and-rbac.md)) |
 

@@ -81,7 +81,17 @@ services:
       interval: 10s
       timeout: 3s
       retries: 12
-      start_period: 20s
+      # Generous, because the first start does a cold `pnpm install` inside the
+      # container: corepack fetches pnpm, then ~300 packages land in an empty
+      # anonymous volume. That is around a minute on a warm machine and rather
+      # more on a cold one, and a healthcheck that expires mid-install reports
+      # "unhealthy" for a service that was only ever slow.
+      #
+      # CI does not use this service at all — the runner already has
+      # node_modules, so e2e.yml starts Vite there and brings up only postgres
+      # and backend. This exists for `pnpm up`, where one command starting
+      # everything is the point.
+      start_period: 180s
 
 volumes:
   postgres-data:

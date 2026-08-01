@@ -18,8 +18,8 @@ broken, and CI will not merge a red build.
 | Concurrency | JUnit 5 + `CyclicBarrier` + Testcontainers | Real contention on the idempotency key | 8 | ~1 s |
 | Security | MockMvc + real login | Tokens, roles, rotation, reuse detection | 19 | ~5 s |
 | Reconciliation | Testcontainers + jqwik | Matching, classification, the bridge invariant | 39 | ~20 s |
-| Frontend unit/component | Vitest + Testing Library + MSW | Components | ~120 | ~20 s |
-| E2E | Playwright | Compose stack | ~15 flows | ~3 min |
+| Frontend unit/component | Vitest + Testing Library + MSW | Real fetch against intercepted HTTP | 40 | ~3 s |
+| E2E | Playwright (Chromium) | Compose stack, real browser | 14 flows | ~18 s |
 
 **H2 is not used, at any layer.** Half the invariants in this system live in
 Postgres-specific features — deferred constraint triggers, generated columns,
@@ -164,7 +164,7 @@ properties, which sit at the bottom of Spring's precedence order and lose to
 The consequence is worse than a failed test. This suite truncates the journal
 before every try, so a context pointed at the wrong database destroys data and
 still reports green. That is precisely what happened: the suite passed on a
-developer machine running `pnpm db` — against the Compose database, which it was
+developer machine running `pnpm stack:db` — against the Compose database, which it was
 quietly wiping — and only failed in CI, where nothing listens on that port.
 
 `assertConnectedToTheTestContainer()` now runs immediately after the context
@@ -227,6 +227,7 @@ And the suite was checked by deliberately breaking the code:
 | Audit rows rolled back with the failure they recorded — `@Transactional` on a self-invoked method does nothing (found, not injected) | 1 auth test |
 | Refresh-token family revocation rolled back by the exception that triggered it, so reuse detection revoked nothing (found, not injected) | 1 auth test |
 | `BreakClassifier` delta sign flipped on unmatched journal lines | the bridge property, plus 3 example-based reconciliation tests |
+| Single-flight refresh replaced with one refresh per caller | 1 of 10 client tests — the concurrent one |
 | Order-dependent audit assertion, and a token tamper that flipped only base64 padding bits (both found by CI, not by the local suite) | now by randomised method order — 8 seeds green |
 
 The last two are worth dwelling on. Both compiled, both read correctly, and both
