@@ -10,6 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.test.context.support.WithMockUser;
 
 import dev.lseg.ledger.domain.JournalEntry;
 import dev.lseg.ledger.domain.LedgerError;
@@ -20,6 +21,7 @@ import dev.lseg.ledger.ledger.PostingContext;
 import dev.lseg.ledger.ledger.PostingService;
 import dev.lseg.ledger.support.PostgresIT;
 
+@WithMockUser(username = "operator@demo.local", roles = "OPERATOR")
 class IdempotencyServiceIT extends PostgresIT {
 
     private static final UUID SYSTEM_USER = UUID.fromString("00000000-0000-0000-0000-000000000001");

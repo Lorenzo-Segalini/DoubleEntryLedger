@@ -32,6 +32,7 @@ proven by tests:
 | **Money is exact** | Integer minor units end to end — `BIGINT` in Postgres, `long` in Java, a branded integer type in TypeScript. No float touches an amount. |
 | **Retries are safe** | Every write endpoint requires an `Idempotency-Key`. Correctness rests on a primary-key conflict, not on a check-then-insert race. |
 | **Differences are explained** | Reconciliation classifies every break by type and asserts that the deltas sum exactly to the ledger-to-statement difference. |
+| **The auditor cannot write** | Roles are enforced on the service layer, not the controllers, so a new endpoint cannot expose an unguarded path. Refresh tokens rotate, and replaying one revokes the whole session family. |
 
 ## What it does
 
@@ -66,7 +67,7 @@ flowchart LR
 
 | Layer | Stack |
 |---|---|
-| Backend | Java 21, Spring Boot 3.5, Flyway, JDBC |
+| Backend | Java 21, Spring Boot 3.5, Flyway, JDBC, Spring Security (JWT RS256) |
 | Database | PostgreSQL 17 — deferred constraint triggers, generated columns, `pg_trgm` |
 | Frontend | React, TypeScript (`strict`), Vite, TanStack Query, Tailwind |
 | Testing | JUnit 5, Testcontainers, jqwik, ArchUnit, Vitest, Playwright |

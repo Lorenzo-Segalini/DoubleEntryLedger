@@ -16,10 +16,19 @@ Base URL: `/api/v1`
 
 `amountMinor` is the integer count of minor units and is the **only** field the
 server reads on input. `amount` is a formatted decimal *string* that responses
-include for display convenience and requests ignore. Sending a JSON number for
-money is rejected with `422` — a `double` that passed through a JavaScript client
-has already lost the argument. See
+include for display convenience and requests ignore.
+
+Sending a decimal where minor units are expected is a **`400`**, not a rounding
+decision made on the caller's behalf. This needs saying because Jackson's
+default is the opposite: `ACCEPT_FLOAT_AS_INT` is on, and `125.50` into a
+`long` field truncates silently to `125` — money lost with no error anywhere.
+The application disables it (`spring.jackson.deserialization.accept-float-as-int:
+false`) and an API test asserts the rejection. See
 [ADR-0002](adr/0002-integer-minor-units-for-money.md).
+
+Null fields are omitted rather than serialised as `null`
+(`default-property-inclusion: non_null`), so a non-reversal entry has no
+`reversalOfEntryId` key at all.
 
 **Errors** follow RFC 9457 `application/problem+json`:
 
@@ -60,6 +69,8 @@ guess one.
 
 ## 3.2 Authentication and roles
 
+
+
 `POST /api/v1/auth/login` exchanges credentials for a short-lived access JWT
 (15 min, `Authorization: Bearer`) and a rotating refresh token delivered as an
 `HttpOnly; Secure; SameSite=Strict` cookie. Access tokens are signed RS256; the
@@ -77,7 +88,34 @@ of them. Authorisation is enforced with method-level `@PreAuthorize` on the
 service layer, not only on controllers, so a new controller cannot accidentally
 expose an unguarded path.
 
-Every denied request writes an `audit_event` with `outcome = 'DENIED'`.
+Every denied request writes an `audit_event` with `outcome = 'DENIED'`, and every
+login failure records *why* — `bad-password` or `unknown-email` — even though the
+caller is told neither. That asymmetry is the point: what a client may not learn,
+an auditor may.
+
+Two transaction details make this work, and both are the kind that fail silently
+when they are wrong:
+
+- The audit methods are `@Transactional(REQUIRES_NEW)` **on the public methods**,
+  not on the shared private writer. Spring's proxy only intercepts calls arriving
+  from outside the bean, so annotating a helper the class calls on `this` does
+  nothing — and a denied login would roll back and take its own "denied" record
+  with it.
+- `refresh` is `@Transactional(noRollbackFor = AuthenticationFailedException)`.
+  Detecting reuse revokes the family and then rejects the call; a plain
+  `@Transactional` rolls the revocation back on the way out, leaving the
+  attacker's session alive while the logs claim it was killed.
+
+### Refresh token rotation
+
+Every refresh mints a new token and marks the old one used, within one family per
+login. Presenting an already-rotated token means two parties hold the same
+credential and nothing can tell which is calling, so the whole family is revoked
+and both are forced to log in again. The legitimate client is logged out too —
+an inconvenience that beats an attacker with a live session.
+
+Tokens are stored as SHA-256 hashes, never in the clear: a database dump should
+not be a set of live credentials.
 
 The public demo seeds three accounts with published credentials
 (`auditor@demo.local`, `operator@demo.local`, `admin@demo.local`); passwords are

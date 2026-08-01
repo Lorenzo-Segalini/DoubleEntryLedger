@@ -13,9 +13,10 @@ broken, and CI will not merge a red build.
 | Domain property | jqwik | Pure domain, no Docker | 9 properties × 200–1000 tries | < 1 s |
 | Database property | jqwik + Testcontainers | Real schema and queries | 6 properties × 100–200 tries | ~20 s |
 | Persistence | Testcontainers Postgres | Real schema, real triggers | ~50 | ~40 s |
-| API integration | `@SpringBootTest` + Testcontainers + RestAssured | Full stack, real HTTP | ~70 | ~90 s |
+| API integration | `@SpringBootTest` + MockMvc + Testcontainers | Full stack, real HTTP semantics | 16 | ~1 s |
 | Architecture | ArchUnit | Bytecode | ~12 rules | < 5 s |
 | Concurrency | JUnit 5 + `CyclicBarrier` + Testcontainers | Real contention on the idempotency key | 8 | ~1 s |
+| Security | MockMvc + real login | Tokens, roles, rotation, reuse detection | 19 | ~5 s |
 | Frontend unit/component | Vitest + Testing Library + MSW | Components | ~120 | ~20 s |
 | E2E | Playwright | Compose stack | ~15 flows | ~3 min |
 
@@ -199,6 +200,14 @@ And the suite was checked by deliberately breaking the code:
 | `Direction.CREDIT` sign flipped to `+1` | 6 of 9 domain properties |
 | Balance query's date filter moved from `ON` to `WHERE` — the classic reporting bug | 3 of 6 database properties, plus 2 example-based tests |
 | Atomic claim replaced with check-then-insert | 6 of 8 concurrency tests — and **0 of 10** sequential idempotency tests |
+| Jackson's default `ACCEPT_FLOAT_AS_INT` (found, not injected): `125.50` truncating to `125` minor units | 1 API test — the only layer where it was reachable |
+| Audit rows rolled back with the failure they recorded — `@Transactional` on a self-invoked method does nothing (found, not injected) | 1 auth test |
+| Refresh-token family revocation rolled back by the exception that triggered it, so reuse detection revoked nothing (found, not injected) | 1 auth test |
+
+The last two are worth dwelling on. Both compiled, both read correctly, and both
+silently did the opposite of what their own comments claimed. Neither is
+reachable without exercising the failing path end to end — which is the argument
+for testing the denial cases as carefully as the success ones.
 
 The second matters because it is invisible to the domain model: only the
 database-level properties could find it. The third matters more. A naive

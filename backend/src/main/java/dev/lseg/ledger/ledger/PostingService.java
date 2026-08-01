@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +30,11 @@ import dev.lseg.ledger.domain.PostedEntry;
  * everything that needs to look outside the entry: whether the accounts exist,
  * whether they are open, whether their currencies agree with the lines, and what
  * today's date is.
+ *
+ * <p>Authorisation is enforced <em>here</em>, not only on the controllers. A
+ * controller added later without an annotation still hits a guarded service, and
+ * AUDITOR is refused at the layer that actually writes rather than at the one
+ * that happens to be in front of it today. See ADR-0007.
  */
 @Service
 public class PostingService {
@@ -54,6 +60,7 @@ public class PostingService {
      * slipped past the domain would surface as a transaction failure, not as a
      * bad row. That is the intended order of defences, not an oversight.
      */
+    @PreAuthorize("hasAnyRole('OPERATOR', 'ADMIN')")
     @Transactional
     public PostedEntry post(JournalEntry entry, PostingContext context) {
         Map<String, Account> resolved = resolveAccounts(entry);
@@ -68,6 +75,7 @@ public class PostingService {
      * derived from the original, which is what makes invariant I9 hold: it cannot
      * be a partial cancellation of the entry it claims to reverse.
      */
+    @PreAuthorize("hasAnyRole('OPERATOR', 'ADMIN')")
     @Transactional
     public PostedEntry reverse(UUID entryId, String reason, LocalDate reversalDate, PostingContext context) {
         if (reason == null || reason.isBlank()) {
