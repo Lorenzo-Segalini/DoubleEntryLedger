@@ -1,0 +1,8 @@
+packages:
+  - "frontend"
+
+# Dependencies allowed to run install scripts. esbuild needs its postinstall to
+# fetch the platform binary; msw's writes the browser service worker.
+onlyBuiltDependencies:
+  - esbuild
+  - msw

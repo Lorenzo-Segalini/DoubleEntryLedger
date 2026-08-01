@@ -1,0 +1,31 @@
+{
+  "name": "double-entry-ledger",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Append-only double-entry ledger — monorepo root",
+  "license": "MIT",
+  "packageManager": "pnpm@10.12.1",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild", "msw"]
+  },
+  "scripts": {
+    "dev": "pnpm --filter frontend dev",
+    "build": "pnpm --filter frontend build",
+    "lint": "pnpm --filter frontend lint",
+    "typecheck": "pnpm --filter frontend typecheck",
+    "test": "pnpm --filter frontend test",
+    "test:e2e": "pnpm --filter frontend test:e2e",
+    "backend:run": "cd backend && ./mvnw spring-boot:run -Dspring-boot.run.profiles=local",
+    "backend:test": "cd backend && ./mvnw verify",
+    "backend:build": "cd backend && ./mvnw -B clean package",
+    "api:types": "pnpm --filter frontend api:types",
+    "up": "docker compose -f infra/compose.yaml up -d --wait",
+    "down": "docker compose -f infra/compose.yaml down",
+    "db": "docker compose -f infra/compose.yaml up -d postgres --wait",
+    "db:psql": "docker compose -f infra/compose.yaml exec postgres psql -U ledger -d ledger"
+  }
+}

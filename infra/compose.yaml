@@ -1,0 +1,85 @@
+name: double-entry-ledger
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ledger}
+      POSTGRES_USER: ${POSTGRES_USER:-ledger}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ledger}
+      # Deterministic collation: index and ORDER BY behaviour must not depend on
+      # the developer's locale, or a sort works locally and differs in production.
+      POSTGRES_INITDB_ARGS: '--locale=C --encoding=UTF8'
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-ledger} -d ${POSTGRES_DB:-ledger}']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ledger}
+      DATABASE_USER: ${POSTGRES_USER:-ledger}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-ledger}
+      CORS_ALLOWED_ORIGINS: http://localhost:${FRONTEND_PORT:-5173}
+      DEMO_OPERATOR_PASSWORD: ${DEMO_OPERATOR_PASSWORD:-demo-operator}
+      DEMO_AUDITOR_PASSWORD: ${DEMO_AUDITOR_PASSWORD:-demo-auditor}
+      DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-demo-admin}
+      # The production JVM flags live in the Dockerfile's ENV and are cleared here:
+      # local runs should use a normal JVM, not one tuned for a 512 MB Fly machine.
+      JAVA_TOOL_OPTIONS: ''
+    ports:
+      - '${BACKEND_PORT:-8080}:8080'
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:8080/actuator/health/readiness']
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+
+  frontend:
+    image: node:22-alpine
+    # The whole repo is mounted, not just frontend/: pnpm-lock.yaml and the
+    # workspace definition live at the root, so `--frozen-lockfile` needs them.
+    working_dir: /repo/frontend
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      VITE_API_BASE_URL: http://localhost:${BACKEND_PORT:-8080}
+      # Without this pnpm picks a store next to the mounted repo and leaves a
+      # few hundred MB of container-owned files in the developer's working tree.
+      PNPM_HOME: /pnpm
+      npm_config_store_dir: /pnpm/store
+    ports:
+      - '${FRONTEND_PORT:-5173}:5173'
+    volumes:
+      - ..:/repo
+      # Anonymous volumes mask the host's node_modules. Native binaries (esbuild)
+      # are built for the host's libc; the container needs its own musl copies.
+      - /repo/node_modules
+      - /repo/frontend/node_modules
+      - pnpm-store:/pnpm
+    command: sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm dev --host 0.0.0.0"
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:5173']
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+
+volumes:
+  postgres-data:
+  pnpm-store:

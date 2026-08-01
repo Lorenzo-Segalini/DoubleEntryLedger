@@ -1,0 +1,13 @@
+# Everything here comes from the environment; nothing secret is committed.
+# See docs/08-deployment.md §8.8.
+spring:
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USER}
+    password: ${DATABASE_PASSWORD}
+
+server:
+  forward-headers-strategy: native
+
+logging:
+  config: classpath:logback-json.xml
