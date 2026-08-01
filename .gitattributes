@@ -1,0 +1,55 @@
+# Normalise line endings in the repository, and control what lands in the
+# working tree per platform.
+#
+# The critical entry is `mvnw`. Git for Windows defaults to core.autocrlf=true,
+# which would rewrite it with CRLF endings on checkout. A shell script with CRLF
+# fails to execute under WSL, Git Bash, Docker and CI with a misleading
+# `bad interpreter: /bin/sh^M`. Forcing LF on it is what keeps the build working
+# for a contributor on Windows.
+
+* text=auto eol=lf
+
+# Shell scripts and anything with a shebang must stay LF, everywhere.
+*.sh        text eol=lf
+mvnw        text eol=lf
+gradlew     text eol=lf
+
+# Windows batch files must stay CRLF or cmd.exe misparses them.
+*.cmd       text eol=crlf
+*.bat       text eol=crlf
+*.ps1       text eol=crlf
+
+# Source and config: explicit LF.
+*.java      text eol=lf
+*.sql       text eol=lf
+*.xml       text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.json      text eol=lf
+*.ts        text eol=lf
+*.tsx       text eol=lf
+*.js        text eol=lf
+*.jsx       text eol=lf
+*.css       text eol=lf
+*.html      text eol=lf
+*.md        text eol=lf
+*.toml      text eol=lf
+Dockerfile  text eol=lf
+.gitignore  text eol=lf
+.editorconfig text eol=lf
+
+# Binary: never touch.
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.pdf       binary
+*.jar       binary
+*.zip       binary
+*.woff      binary
+*.woff2     binary
+
+# Generated: keep diffs out of review and out of language statistics.
+pnpm-lock.yaml     linguist-generated=true -diff
+frontend/src/api/schema.d.ts linguist-generated=true -diff
