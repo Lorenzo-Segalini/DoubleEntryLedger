@@ -176,6 +176,28 @@ silent one.
 > to destroy. Any future suite that truncates, deletes or resets shared state
 > belongs behind the same check.
 
+### Method order is randomised
+
+`src/test/resources/junit-platform.properties` sets `MethodOrderer$Random` and
+`ClassOrderer$Random`. This is not for variety.
+
+JUnit's default order is a deterministic hash of the method names — deterministic
+for a given JVM, and **not stable across JVM builds**. An order-dependent test
+therefore passes on one patch release and fails on another, which is exactly what
+happened: `AuthApiIT` had two tests that each wrote a `DENIED` audit row, and
+whichever ran second saw a count of two. It was green locally on 21.0.12 and red
+in CI on 21.0.11.
+
+Random ordering does not create that fragility. It exposes it, on the first run
+rather than the fiftieth. The seed is printed on every run, so a failure is
+reproducible with `-Djunit.jupiter.execution.order.random.seed=<seed>`.
+
+The rule it enforces: **a test asserts about what it did, not about the state it
+happened to inherit.** Where the shared state cannot be cleared — `audit_event`
+is append-only by design, and its immutability trigger refuses `DELETE` — the
+test takes a watermark in `@BeforeEach` and counts only rows above it. Pretending
+the log is clearable would have been the easier fix and the wrong one.
+
 ### Generators
 
 `entries()` produces entries balanced by construction: one to three debit lines
@@ -205,6 +227,7 @@ And the suite was checked by deliberately breaking the code:
 | Audit rows rolled back with the failure they recorded — `@Transactional` on a self-invoked method does nothing (found, not injected) | 1 auth test |
 | Refresh-token family revocation rolled back by the exception that triggered it, so reuse detection revoked nothing (found, not injected) | 1 auth test |
 | `BreakClassifier` delta sign flipped on unmatched journal lines | the bridge property, plus 3 example-based reconciliation tests |
+| Order-dependent audit assertion, and a token tamper that flipped only base64 padding bits (both found by CI, not by the local suite) | now by randomised method order — 8 seeds green |
 
 The last two are worth dwelling on. Both compiled, both read correctly, and both
 silently did the opposite of what their own comments claimed. Neither is

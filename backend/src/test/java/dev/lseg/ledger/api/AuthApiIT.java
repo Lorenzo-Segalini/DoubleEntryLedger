@@ -48,11 +48,21 @@ class AuthApiIT extends PostgresIT {
 
     MockMvc mvc;
 
+    /**
+     * The audit log is append-only — the immutability trigger refuses DELETE, and
+     * that is the point of it. So these tests assert about what they themselves
+     * added, from this watermark onwards, rather than about the table being empty.
+     */
+    private long auditWatermark;
+
     @BeforeEach
     void setUp() {
         truncateJournal();
         jdbc.sql("DELETE FROM idempotency_record").update();
         jdbc.sql("DELETE FROM refresh_token").update();
+        auditWatermark = jdbc.sql("SELECT COALESCE(MAX(id), 0) FROM audit_event")
+                .query(Long.class)
+                .single();
 
         mvc = MockMvcBuilders.webAppContextSetup(context)
                 .apply(SecurityMockMvcConfigurers.springSecurity())
@@ -158,8 +168,19 @@ class AuthApiIT extends PostgresIT {
     @Test
     void aTamperedTokenIsRejected() throws Exception {
         String token = accessToken("operator@demo.local", "test-operator");
-        // Flip the last character of the signature.
-        String tampered = token.substring(0, token.length() - 1) + (token.endsWith("A") ? "B" : "A");
+
+        // The payload, not the signature's last character. An RSA-2048 signature
+        // base64url-encodes to 342 characters whose final one carries only two
+        // significant bits; flipping it can change nothing but padding the decoder
+        // discards, leaving the signature — and the token — perfectly valid. Any
+        // change to the payload alters the signed input and cannot be a no-op.
+        String[] parts = token.split("\\.");
+        char[] payload = parts[1].toCharArray();
+        int middle = payload.length / 2;
+        payload[middle] = payload[middle] == 'a' ? 'b' : 'a';
+        String tampered = parts[0] + "." + new String(payload) + "." + parts[2];
+
+        org.assertj.core.api.Assertions.assertThat(tampered).isNotEqualTo(token);
 
         mvc.perform(get("/api/v1/accounts").header("Authorization", "Bearer " + tampered))
                 .andExpect(status().isUnauthorized());
@@ -207,7 +228,12 @@ class AuthApiIT extends PostgresIT {
                         .content(transferJson()))
                 .andExpect(status().isForbidden());
 
-        long denials = jdbc.sql("SELECT count(*) FROM audit_event WHERE outcome = 'DENIED' AND actor_role = 'AUDITOR'")
+        long denials = jdbc.sql(
+                        """
+                        SELECT count(*) FROM audit_event
+                         WHERE id > :watermark AND outcome = 'DENIED' AND actor_role = 'AUDITOR'
+                        """)
+                .param("watermark", auditWatermark)
                 .query(Long.class)
                 .single();
 
@@ -357,13 +383,17 @@ class AuthApiIT extends PostgresIT {
     }
 
     private java.util.List<String> auditReasons() {
-        return jdbc.sql("SELECT detail ->> 'reason' FROM audit_event WHERE outcome = 'DENIED'")
+        return jdbc.sql("SELECT detail ->> 'reason' FROM audit_event WHERE id > :w AND outcome = 'DENIED'")
+                .param("w", auditWatermark)
                 .query(String.class)
                 .list();
     }
 
     private java.util.List<String> auditActions() {
-        return jdbc.sql("SELECT action FROM audit_event").query(String.class).list();
+        return jdbc.sql("SELECT action FROM audit_event WHERE id > :w")
+                .param("w", auditWatermark)
+                .query(String.class)
+                .list();
     }
 
     private long count(String table) {
