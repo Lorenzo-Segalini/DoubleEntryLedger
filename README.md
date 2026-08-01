@@ -120,12 +120,18 @@ Send it again with the same key and you get `200` with
 
 ## Running locally
 
+**Prerequisites:** JDK **21**, Node 22, pnpm 10, Docker with Compose v2. Maven is
+*not* needed — the wrapper (`backend/mvnw`) fetches it. Full setup, including
+Apple Silicon notes and troubleshooting: [`docs/00-local-setup.md`](docs/00-local-setup.md).
+
 ```bash
 git clone https://github.com/LorenzoSegaliniAtex/DoubleEntryLedger.git
 cd DoubleEntryLedger
 cp infra/.env.example infra/.env
+pnpm install
 
-docker compose -f infra/compose.yaml up --wait   # Postgres + backend + frontend
+pnpm up          # Postgres + backend + frontend in Docker, waits for health
+pnpm down        # stop
 ```
 
 | | |
@@ -134,19 +140,20 @@ docker compose -f infra/compose.yaml up --wait   # Postgres + backend + frontend
 | API | http://localhost:8080/api/v1 |
 | Swagger UI | http://localhost:8080/swagger-ui.html |
 
-Backend and frontend separately:
+Or database only, with the apps from your IDE — the faster inner loop:
 
 ```bash
-cd backend  && ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
-cd frontend && pnpm install && pnpm dev
+pnpm db            # PostgreSQL on :5432
+pnpm backend:run   # Spring Boot on :8080
+pnpm dev           # Vite on :5173
 ```
 
 Tests:
 
 ```bash
-cd backend  && ./mvnw verify        # unit, property, Testcontainers, ArchUnit
-cd frontend && pnpm test            # Vitest
-pnpm playwright test                # E2E against the Compose stack
+pnpm backend:test                  # ./mvnw verify — unit, property, Testcontainers, ArchUnit
+pnpm test                          # Vitest
+pnpm --filter frontend test:e2e    # Playwright against the Compose stack
 ```
 
 Testcontainers needs a running Docker daemon. There is no H2 fallback —

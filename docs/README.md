@@ -7,6 +7,7 @@ and kept as the reference the code is checked against.
 
 | # | Document | What it answers |
 |---|---|---|
+| 0 | [Local Setup](00-local-setup.md) | Required tool versions, first run, editor choice, troubleshooting |
 | 1 | [Domain Model](01-domain-model.md) | What a ledger is here, and the nine invariants everything else protects |
 | 2 | [Data Model](02-data-model.md) | The PostgreSQL schema, and how it enforces those invariants |
 | 3 | [API Design](03-api.md) | Endpoints, money on the wire, errors, roles |

@@ -237,7 +237,7 @@ A pull request merges only when all of these pass:
 - Line coverage ≥ 85% overall and ≥ 95% in `..domain..` (JaCoCo, enforced)
 - ArchUnit rules green
 - OpenAPI diff shows no undeclared breaking change (`oasdiff`)
-- Frontend: `tsc --noEmit`, ESLint, Vitest, production build
+- Frontend: `tsc --noEmit`, oxlint, Vitest, production build
 - Playwright E2E green against the Compose stack
 - Trivy: no `HIGH`/`CRITICAL` vulnerabilities in the image
 

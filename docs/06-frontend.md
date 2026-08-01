@@ -16,6 +16,7 @@ that every number can be traced to the fact that produced it.
 | API types | `openapi-typescript` generated from `/v3/api-docs` | Types come from the backend contract, not from hand-copied interfaces |
 | Styling | Tailwind CSS | Fast to build a dense data UI; no component library to fight |
 | Tables | TanStack Table | Headless; sorting and cursor pagination stay under our control |
+| Lint | oxlint | Rust-based, ships with the Vite scaffold; fast enough to run on every save |
 | Tests | Vitest + Testing Library + MSW | Component tests against mocked HTTP, not mocked modules |
 | E2E | Playwright | Runs against a real backend in CI |
 
@@ -48,7 +49,7 @@ export const format = (m: Money, locale = 'it-IT'): string =>
 
 The division by the minor-unit exponent happens **only inside `format`**. No
 arithmetic anywhere else in the app touches a fractional number, so JavaScript's
-float semantics never get an opportunity to produce `0.1 + 0.2`. An ESLint rule
+float semantics never get an opportunity to produce `0.1 + 0.2`. An oxlint rule
 (`no-restricted-syntax`) forbids arithmetic operators on any expression typed
 `Minor` outside `lib/money.ts`.
 

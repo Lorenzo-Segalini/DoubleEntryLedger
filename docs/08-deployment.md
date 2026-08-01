@@ -92,7 +92,7 @@ purpose is catching the case where the two drift apart.
 `.github/workflows/ci-frontend.yml`:
 
 1. `pnpm install --frozen-lockfile`
-2. `tsc --noEmit`, `eslint`, `vitest run --coverage`
+2. `tsc --noEmit`, `oxlint`, `vitest run --coverage`
 3. `pnpm build` — a build failure is a CI failure, not a Vercel surprise
 
 `.github/workflows/e2e.yml`:
@@ -123,20 +123,19 @@ COPY pom.xml .
 RUN mvn -B dependency:go-offline           # cached unless pom.xml changes
 COPY src ./src
 RUN mvn -B clean package -DskipTests
-RUN java -Djarmode=tools -jar target/*.jar extract --layers --destination /extracted
+RUN java -Djarmode=tools -jar target/*.jar extract --layers --destination /extracted \
+    && mv /extracted/application/*.jar /extracted/application/app.jar
 
 # ---- run ----
 FROM eclipse-temurin:21-jre-alpine
 RUN addgroup -S app && adduser -S app -G app
 WORKDIR /app
-COPY --from=build --chown=app:app /extracted/dependencies/         ./
-COPY --from=build --chown=app:app /extracted/spring-boot-loader/   ./
-COPY --from=build --chown=app:app /extracted/snapshot-dependencies/ ./
-COPY --from=build --chown=app:app /extracted/application/          ./
+COPY --from=build --chown=app:app /extracted/dependencies/ ./
+COPY --from=build --chown=app:app /extracted/application/  ./
 USER app
 EXPOSE 8080
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75 -XX:+UseSerialGC -XX:TieredStopAtLevel=1"
-ENTRYPOINT ["java", "org.springframework.boot.loader.launch.JarLauncher"]
+ENTRYPOINT ["java", "-jar", "app.jar"]
 ```
 
 Choices that matter:
@@ -144,6 +143,11 @@ Choices that matter:
 - **Layered extraction.** Dependencies change rarely, application code changes
   every push. Splitting them means a typical deploy pushes a few hundred KB
   instead of ~60 MB, which is most of the deploy time on a small machine.
+- **A thin jar, not `JarLauncher`.** Spring Boot 3.3 replaced `layertools` with
+  `jarmode=tools`, and the layout it produces is different: `application/app.jar`
+  carries `Main-Class` and a `Class-Path: lib/…` manifest pointing at
+  `dependencies/lib`, and the `spring-boot-loader` layer is empty. The entrypoint
+  is therefore an ordinary `java -jar`, and app.jar and `lib/` must stay siblings.
 - **`dependency:go-offline` before `COPY src`.** The dependency layer is cached
   unless `pom.xml` itself changes.
 - **Non-root user.** Free, and the absence of it is the first thing a security
