@@ -164,7 +164,7 @@ properties, which sit at the bottom of Spring's precedence order and lose to
 The consequence is worse than a failed test. This suite truncates the journal
 before every try, so a context pointed at the wrong database destroys data and
 still reports green. That is precisely what happened: the suite passed on a
-developer machine running `pnpm db` — against the Compose database, which it was
+developer machine running `pnpm stack:db` — against the Compose database, which it was
 quietly wiping — and only failed in CI, where nothing listens on that port.
 
 `assertConnectedToTheTestContainer()` now runs immediately after the context

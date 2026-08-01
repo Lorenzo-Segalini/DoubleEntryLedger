@@ -26,9 +26,9 @@
     "backend:test": "node scripts/mvnw.mjs verify",
     "backend:build": "node scripts/mvnw.mjs -B clean package",
     "api:types": "pnpm --filter frontend api:types",
-    "up": "docker compose -f infra/compose.yaml up -d --wait",
-    "down": "docker compose -f infra/compose.yaml down",
-    "db": "docker compose -f infra/compose.yaml up -d postgres --wait",
-    "db:psql": "docker compose -f infra/compose.yaml exec postgres psql -U ledger -d ledger"
+    "stack:up": "docker compose -f infra/compose.yaml up -d --wait",
+    "stack:down": "docker compose -f infra/compose.yaml down",
+    "stack:db": "docker compose -f infra/compose.yaml up -d postgres --wait",
+    "stack:psql": "docker compose -f infra/compose.yaml exec postgres psql -U ledger -d ledger"
   }
 }

@@ -131,8 +131,8 @@ cd DoubleEntryLedger
 cp infra/.env.example infra/.env
 pnpm install
 
-pnpm up          # Postgres + backend + frontend in Docker, waits for health
-pnpm down        # stop
+pnpm stack:up          # Postgres + backend + frontend in Docker, waits for health
+pnpm stack:down        # stop
 ```
 
 | | |
@@ -144,7 +144,7 @@ pnpm down        # stop
 Or database only, with the apps from your IDE — the faster inner loop:
 
 ```bash
-pnpm db            # PostgreSQL on :5432
+pnpm stack:db            # PostgreSQL on :5432
 pnpm backend:run   # Spring Boot on :8080
 pnpm dev           # Vite on :5173
 ```

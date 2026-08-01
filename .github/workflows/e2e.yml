@@ -27,26 +27,36 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter frontend exec playwright install --with-deps chromium
 
-      - name: Start the stack
+      # Only the database and the API. The frontend runs on the runner, which
+      # already has node_modules from the step above — running it in Docker
+      # instead means a second cold `pnpm install` inside an Alpine container,
+      # racing a healthcheck, for no gain. The compose frontend service stays for
+      # local `pnpm up`, where one command starting everything is the point.
+      - name: Start the database and the API
         run: |
           cp infra/.env.example infra/.env
-          docker compose -f infra/compose.yaml up -d --build --wait
+          docker compose -f infra/compose.yaml up -d --wait postgres backend
 
-      # Against a real backend and a real PostgreSQL, never mocks: the status
-      # codes and the append-only behaviour these assert only mean something if
-      # the database triggers are the ones enforcing them.
+      # E2E_BASE_URL is deliberately unset: Playwright's own webServer then
+      # starts Vite and waits for it. Vite proxies /api to the containerised
+      # backend, so the browser sees a same-origin call — which is what makes the
+      # SameSite=Strict refresh cookie behave as it does in production.
       - name: Run end-to-end tests
-        env:
-          E2E_BASE_URL: http://localhost:5173
-        run: pnpm --filter frontend exec playwright test --workers=1
+        working-directory: frontend
+        run: pnpm exec playwright test --workers=1
 
-      - name: Backend logs on failure
+      # Every service, not just the backend. The previous version dumped the API
+      # log only, which said nothing when it was the frontend that failed to come
+      # up — a failure you cannot read is a failure you cannot fix.
+      - name: Service logs on failure
         if: failure()
-        run: docker compose -f infra/compose.yaml logs backend | tail -200
+        run: docker compose -f infra/compose.yaml logs --no-color --tail=200
 
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: playwright-report
-          path: frontend/playwright-report/
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
           retention-days: 7
