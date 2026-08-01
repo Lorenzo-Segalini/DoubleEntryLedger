@@ -1,18 +1,8 @@
-import { createContext, use, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { tokenStore, type Session } from '@/api/tokenStore'
-import { can, type AppRole, type PERMISSIONS } from '@/api/types'
+import { can } from '@/api/types'
+import { AuthContext, type AuthState } from './AuthContext'
 import { login as doLogin, logout as doLogout, restoreSession } from './auth'
-
-interface AuthState {
-  session: Session | null
-  loading: boolean
-  role: AppRole | undefined
-  signIn: (email: string, password: string) => Promise<void>
-  signOut: () => Promise<void>
-  can: (action: keyof typeof PERMISSIONS) => boolean
-}
-
-const AuthContext = createContext<AuthState | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(tokenStore.get())
@@ -43,10 +33,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   return <AuthContext value={value}>{children}</AuthContext>
-}
-
-export function useAuth(): AuthState {
-  const context = use(AuthContext)
-  if (!context) throw new Error('useAuth must be used inside AuthProvider')
-  return context
 }
