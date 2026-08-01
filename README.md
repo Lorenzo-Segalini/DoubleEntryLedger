@@ -31,7 +31,7 @@ proven by tests:
 | **Balances are derived** | No stored balance exists to drift from the journal. A balance as of any past date is the same query as today's. |
 | **Money is exact** | Integer minor units end to end — `BIGINT` in Postgres, `long` in Java, a branded integer type in TypeScript. No float touches an amount. |
 | **Retries are safe** | Every write endpoint requires an `Idempotency-Key`. Correctness rests on a primary-key conflict, not on a check-then-insert race. |
-| **Differences are explained** | Reconciliation classifies every break by type and asserts that the deltas sum exactly to the ledger-to-statement difference. |
+| **Differences are explained** | Reconciliation classifies every break by type and asserts that the deltas sum exactly to the ledger-to-statement difference — a property test injects random discrepancies and requires the bridge to close every time. |
 | **The auditor cannot write** | Roles are enforced on the service layer, not the controllers, so a new endpoint cannot expose an unguarded path. Refresh tokens rotate, and replaying one revokes the whole session family. |
 
 ## What it does

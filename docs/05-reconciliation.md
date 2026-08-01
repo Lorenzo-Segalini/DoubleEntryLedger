@@ -101,7 +101,7 @@ Anything unmatched becomes a typed `reconciliation_break` carrying a signed
 | `MISSING_IN_LEDGER` | On the statement, never booked (e.g. a bank fee) | `+statement.amount` |
 | `MISSING_IN_STATEMENT` | Booked, never appeared at the bank | `−journal.amount` |
 | `AMOUNT_MISMATCH` | Matched pair, different amounts | `statement − journal` |
-| `TIMING_DIFFERENCE` | Matched pair straddling the period cut-off | signed amount of the out-of-period side |
+| `TIMING_DIFFERENCE` | Booked in the period, expected to clear after it | `−journal.amount`, exactly as `MISSING_IN_STATEMENT` |
 | `DUPLICATE_IN_LEDGER` | Same movement booked twice | `−duplicate.amount` |
 | `DUPLICATE_IN_STATEMENT` | Bank reported it twice | `+duplicate.amount` |
 | `CURRENCY_MISMATCH` | Statement line in a different currency | `0`, flagged for manual handling |
@@ -128,6 +128,17 @@ Reporting it as "missing" sends an operator chasing a transaction that is fine.
 This is exactly the distinction that the two-date model in
 [§1.5](01-domain-model.md#15-two-dates-deliberately) makes possible.
 
+**But its delta is not zero.** Classification changes the label and the advice,
+never the arithmetic: the payment really is in the ledger and really is not on
+the statement, so it contributes what any other unmatched journal line
+contributes. A type that read as a genuine difference while adding nothing to the
+bridge would break the one invariant this feature exists to uphold. The type says
+"no action needed"; the number says what it is worth.
+
+The only delta that is genuinely zero is `CURRENCY_MISMATCH`, because an amount
+in another currency cannot be added to this account's balance at all — it needs a
+rate and a decision, which is [phase 3](09-roadmap.md#93-phase-3--full-multi-currency).
+
 ## 5.5 The report
 
 ```
@@ -141,8 +152,8 @@ GET /api/v1/reconciliations/{id}/report
   "period": { "start": "2026-06-01", "end": "2026-06-30" },
   "currency": "EUR",
   "ledgerClosing":    { "amountMinor": 4821900, "currency": "EUR", "amount": "48219.00" },
-  "statementClosing": { "amountMinor": 4810450, "currency": "EUR", "amount": "48104.50" },
-  "difference":       { "amountMinor":  -11450, "currency": "EUR", "amount": "-114.50" },
+  "statementClosing": { "amountMinor": 4825450, "currency": "EUR", "amount": "48254.50" },
+  "difference":       { "amountMinor":    3550, "currency": "EUR", "amount": "35.50" },
   "matched":   { "count": 128, "amountMinor": 3910200 },
   "unmatched": { "statementLines": 2, "journalLines": 2 },
   "bridge": [
@@ -150,17 +161,24 @@ GET /api/v1/reconciliations/{id}/report
       "detail": "Bank charge 14.50 EUR on 2026-06-28 not booked", "status": "OPEN" },
     { "breakId": "…", "type": "DUPLICATE_IN_LEDGER", "deltaMinor": -10000,
       "detail": "Entry #4012 and #4019 both book PSP settlement psp:pay_3Nk8Qz", "status": "OPEN" },
-    { "breakId": "…", "type": "TIMING_DIFFERENCE",   "deltaMinor":      0,
-      "detail": "Transfer #4033 effective 2026-06-30, cleared 2026-07-02", "status": "EXPLAINED" }
+    { "breakId": "…", "type": "TIMING_DIFFERENCE",   "deltaMinor":  15000,
+      "detail": "Booked 2026-06-30, expected to clear after the period end — no action needed",
+      "status": "EXPLAINED" }
   ],
-  "bridgeTotalMinor": -11450,
+  "bridgeTotalMinor": 3550,
   "bridgeBalanced": true,
   "matchRate": 0.984,
   "generatedAt": "2026-08-01T10:31:00Z"
 }
 ```
 
-`difference` equals `bridgeTotalMinor`. That equality is the deliverable.
+`difference` equals `bridgeTotalMinor`. That equality is the deliverable, and it
+is asserted directly — not read off the `bridgeBalanced` flag, so a bug in the
+flag cannot hide a bug in the arithmetic.
+
+Only `OPEN` and `EXPLAINED` breaks contribute. A `RESOLVED` break has had an
+adjusting entry posted against it, so the ledger already moved and counting it
+again would double it.
 
 ## 5.6 Break lifecycle
 
@@ -174,7 +192,11 @@ OPEN ──explain──▶ EXPLAINED ──resolve──▶ RESOLVED
   differences and for anything awaiting a counterparty.
 - **`resolve`** posts an adjusting journal entry through the ordinary posting
   service — same validation, same idempotency requirement, same audit trail —
-  and stores its id in `resolving_entry_id`. Reconciliation has **no privileged
+  and stores its id in `resolving_entry_id`. Its effective date defaults to the
+  **period being reconciled**, not to today: an operator resolving a June break
+  means "book this into June", and dating it now would leave June's difference
+  open. That is accounting-correct and not what was asked, so an explicit
+  `effectiveDate` is how you book into the current period instead. Reconciliation has **no privileged
   write path into the journal**. It cannot nudge a balance to make its own
   report come out even, which is the failure mode that makes some reconciliation
   tools worse than useless.
