@@ -10,9 +10,13 @@ Java · Spring Boot · PostgreSQL · React · TypeScript
 **Live demo:** _(pending first deploy)_ · **API docs:** `/swagger-ui.html` ·
 **Design docs:** [`docs/`](docs/)
 
-> **Status: design phase.** The documentation in [`docs/`](docs/) is complete and
-> is the specification the implementation is being built against. Code lands
-> next; this README describes the system as designed.
+> **Status: implemented, not yet deployed.** The ledger, the API, reconciliation
+> and the back office all run — `pnpm stack:up` gives you the whole thing
+> locally, and CI runs the backend and frontend suites plus a Playwright pass
+> against a real Postgres on every push. What is left before the live demo is
+> the deployment pipeline itself, and the observability the running service
+> needs. [Roadmap §9.1](docs/09-roadmap.md#91-in-scope-for-v1) tracks each v1
+> capability against what is actually in the repository.
 
 ---
 

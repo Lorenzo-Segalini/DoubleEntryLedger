@@ -3,7 +3,7 @@ import { useParams } from 'react-router'
 import { useAccount, useBalance } from '@/features/ledger/queries'
 import { Money } from '@/components/Money'
 import { Card, Field, Spinner, inputClass } from '@/components/Ui'
-import { InfoTip, TipTerm } from '@/components/Tooltip'
+import { InfoTip } from '@/components/Tooltip'
 import { ErrorNotice } from '@/components/ErrorNotice'
 import { formatInstant, today } from '@/lib/dates'
 
@@ -53,28 +53,34 @@ export function AccountMovements() {
       ) : (
         balance.data && (
           <Card title={`Balance as of ${asOf}`}>
+            {/*
+              The term goes straight in the <dt>, with the tooltip as its
+              sibling — not wrapped together in a span. A description list's
+              term names nothing else on the page, so it can hold a control
+              without renaming anything, and keeping the text a direct child
+              means "the element containing this label" is still the <dt> whose
+              <dd> carries the figure.
+            */}
             <dl className="grid gap-2 text-sm sm:grid-cols-4">
               <div>
-                <dt className="text-xs text-muted">
-                  <TipTerm
-                    term="total debits"
-                    tip="Everything posted to the left side of this account in the period. For an asset account that is money in; for an income account it is money out."
-                  >
-                    Total debits
-                  </TipTerm>
+                <dt className="flex items-center gap-0.5 text-xs text-muted">
+                  Total debits
+                  <InfoTip term="total debits">
+                    Everything posted to the left side of this account up to this date. For an asset account that is
+                    money in; for an income account it is money out.
+                  </InfoTip>
                 </dt>
                 <dd className="text-lg">
                   <Money value={balance.data.totalDebit} />
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-muted">
-                  <TipTerm
-                    term="total credits"
-                    tip="Everything posted to the right side of this account in the period. Which direction represents money arriving depends on the account's type."
-                  >
-                    Total credits
-                  </TipTerm>
+                <dt className="flex items-center gap-0.5 text-xs text-muted">
+                  Total credits
+                  <InfoTip term="total credits">
+                    Everything posted to the right side of this account up to this date. Which direction represents
+                    money arriving depends on the account&rsquo;s type.
+                  </InfoTip>
                 </dt>
                 <dd className="text-lg">
                   <Money value={balance.data.totalCredit} />
@@ -87,14 +93,12 @@ export function AccountMovements() {
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-muted">
-                  <TipTerm
-                    term="the line count"
-                    align="end"
-                    tip="How many journal lines the balance above was summed from. It is the size of the evidence, not a balance of its own."
-                  >
-                    Lines
-                  </TipTerm>
+                <dt className="flex items-center gap-0.5 text-xs text-muted">
+                  Lines
+                  <InfoTip term="the line count" align="end">
+                    How many journal lines the balance above was summed from. It is the size of the evidence, not a
+                    balance of its own.
+                  </InfoTip>
                 </dt>
                 <dd className="text-lg tabular-nums">{balance.data.lineCount}</dd>
               </div>

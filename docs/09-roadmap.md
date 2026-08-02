@@ -7,21 +7,52 @@ makes it additive rather than a rewrite.
 
 ## 9.1 In scope for v1
 
-| Capability | Documented in |
-|---|---|
-| Append-only double-entry journal with derived balances | [§1](01-domain-model.md), [§2](02-data-model.md) |
-| Corrections as reversals, never edits | [§1.4](01-domain-model.md#14-append-only-and-what-corrections-look-like) |
-| Invariants enforced in domain, database and tests | [§2.5–2.7](02-data-model.md), [§7.2](07-testing.md#72-invariants-as-tests) |
-| Idempotent write endpoints, safe under concurrent retry | [§4](04-idempotency.md) |
-| Reconciliation with typed, classified, self-balancing breaks | [§5](05-reconciliation.md) |
-| React + TypeScript back office with full audit trail | [§6](06-frontend.md) |
-| JWT auth with `OPERATOR` / `AUDITOR` / `ADMIN` | [§3.2](03-api.md#32-authentication-and-roles) |
-| Multi-currency **schema**, single currency per transaction | [ADR-0005](adr/0005-single-currency-per-transaction.md) |
-| Optimistic locking on account metadata | [§2.2](02-data-model.md#22-account) |
-| Versioned API with OpenAPI 3.1 and a CI breaking-change gate | [§3.8](03-api.md#38-versioning-and-compatibility) |
-| Property-based testing of ledger invariants | [§7.3](07-testing.md#73-property-based-testing) |
-| Observability: metrics, tracing, structured logs | [§8.9](08-deployment.md#89-observability) |
-| Dockerised CI/CD to Fly.io + Neon + Vercel, preview envs | [§8](08-deployment.md) |
+Status is against what is in the repository, not against intent — a row is
+**done** only when the code and its tests are both present.
+
+| Capability | Status | Documented in |
+|---|---|---|
+| Append-only double-entry journal with derived balances | **Done** | [§1](01-domain-model.md), [§2](02-data-model.md) |
+| Corrections as reversals, never edits | **Done** | [§1.4](01-domain-model.md#14-append-only-and-what-corrections-look-like) |
+| Invariants enforced in domain, database and tests | **Done** | [§2.5–2.7](02-data-model.md), [§7.2](07-testing.md#72-invariants-as-tests) |
+| Idempotent write endpoints, safe under concurrent retry | **Done** | [§4](04-idempotency.md) |
+| Reconciliation with typed, classified, self-balancing breaks | **Done** | [§5](05-reconciliation.md) |
+| JWT auth with `OPERATOR` / `AUDITOR` / `ADMIN` | **Done** | [§3.2](03-api.md#32-authentication-and-roles) |
+| Multi-currency **schema**, single currency per transaction | **Done** | [ADR-0005](adr/0005-single-currency-per-transaction.md) |
+| Property-based testing of ledger invariants | **Done** | [§7.3](07-testing.md#73-property-based-testing) |
+| React + TypeScript back office with full audit trail | **Partial** — every screen is built; the audit trail shows an entry's own provenance, but there is no `audit_event` table and no `GET /journal-entries/{id}/audit` behind it | [§6](06-frontend.md) |
+| Optimistic locking on account metadata | **Partial** — the `version` column and its comment exist, but no endpoint writes an account, so nothing exercises it | [§2.2](02-data-model.md#22-account) |
+| Versioned API with OpenAPI 3.1 and a CI breaking-change gate | **Partial** — `/api/v1` and springdoc `openapi_3_1` are live; the CI gate that diffs the spec is not written | [§3.8](03-api.md#38-versioning-and-compatibility) |
+| Observability: metrics, tracing, structured logs | **Partial** — actuator, the Prometheus registry and trace sampling are configured; there are no ledger-specific metrics, and the `prod` profile names a `logback-json.xml` that does not exist | [§8.9](08-deployment.md#89-observability) |
+| Dockerised CI/CD to Fly.io + Neon + Vercel, preview envs | **Pending** — CI builds and tests both sides; nothing publishes an image or deploys. `infra/fly.toml` is written and unused | [§8](08-deployment.md) |
+
+### What is left before v1 is finished
+
+In the order that unblocks the live demo:
+
+1. **The deployment pipeline.** Publish the backend image to GHCR, deploy it to
+   Fly, point Vercel at the frontend, and branch Neon per pull request for
+   preview environments. Everything it needs — the Dockerfile, `fly.toml`, the
+   `prod` profile — exists; the workflow that uses them does not.
+2. **`logback-json.xml`.** `application-prod.yml` sets
+   `logging.config: classpath:logback-json.xml` and that file is absent, so the
+   first thing to verify after the first deploy is that the service starts at
+   all under the `prod` profile. The `logstash-logback-encoder` dependency is
+   already declared.
+3. **Ledger metrics.** The registry is wired but nothing registers a meter.
+   Entries posted, idempotent replays served, reconciliation runs and bridge
+   failures are the four worth having — a bridge that stops closing is the
+   signal that matters, and it is invisible today.
+4. **The audit trail proper.** An `audit_event` table plus
+   `GET /journal-entries/{id}/audit`. The screen in
+   [§6.3](06-frontend.md#63-screens) already has a place to render it.
+5. **The OpenAPI breaking-change gate.** Diff the generated spec against the
+   previous one in CI and fail on a breaking change, which is the whole point of
+   committing to `/api/v1` on day one.
+6. **ArchUnit.** The dependency is declared and `ci-backend.yml` claims the
+   suite runs, but no `ArchTest` exists. Either write the rules the docs promise
+   — controllers never reach repositories, roles are checked at the service
+   layer — or stop claiming them.
 
 Several items the brief listed as nice-to-have are in v1 because deferring them
 would have cost more than including them. Multi-currency columns are free now
