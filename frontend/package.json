@@ -26,6 +26,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@hookform/resolvers": "^3.9.1",
     "@playwright/test": "^1.49.1",
     "@tailwindcss/vite": "^4.0.0",
@@ -38,6 +39,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
     "@vitest/coverage-v8": "^4.1.10",
+    "axe-core": "^4.12.1",
     "jsdom": "^25.0.1",
     "msw": "^2.7.0",
     "openapi-typescript": "^7.4.4",

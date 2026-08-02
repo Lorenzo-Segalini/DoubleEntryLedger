@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
 
 /**
@@ -248,3 +249,56 @@ test.describe('reconciliation', () => {
     await expect(alert).toContainText('Request')
   })
 })
+
+/*
+  The accessibility guard.
+
+  Two colour schemes, because the app follows the operating system's and a
+  token defined for one is not evidence about the other — the failure this
+  suite exists to catch is text left at the browser's default black on a
+  near-black page, which is invisible in dark mode and perfectly fine in light.
+
+  Run against every screen rather than a sample: the violations that matter
+  here are contrast and labelling, and both are properties of markup that gets
+  copied from screen to screen.
+*/
+const SCREENS: Array<{ name: string; path: string }> = [
+  { name: 'the dashboard', path: '/' },
+  { name: 'the chart of accounts', path: '/accounts' },
+  { name: 'the journal', path: '/entries' },
+  { name: 'the posting form', path: '/entries/new' },
+  { name: 'reconciliation', path: '/reconciliation' },
+]
+
+for (const scheme of ['light', 'dark'] as const) {
+  test.describe(`accessibility in ${scheme} mode`, () => {
+    test.use({ colorScheme: scheme })
+
+    test('the login screen has no violations', async ({ page }) => {
+      await page.goto('/login')
+      await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
+
+      const { violations } = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+        .analyze()
+
+      expect(violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target).join(', ')}`)).toEqual([])
+    })
+
+    for (const screen of SCREENS) {
+      test(`${screen.name} has no violations`, async ({ page }) => {
+        await signIn(page, 'operator')
+        await page.goto(screen.path)
+        await expect(page.locator('main')).toBeVisible()
+
+        const { violations } = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+          .analyze()
+
+        // The target list, not just the count: a failing run should say which
+        // element is wrong without anyone having to reproduce it locally.
+        expect(violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target).join(', ')}`)).toEqual([])
+      })
+    }
+  })
+}

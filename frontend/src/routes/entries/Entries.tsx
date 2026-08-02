@@ -2,7 +2,19 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 import { useAccounts, useJournal, type JournalFilters } from '@/features/ledger/queries'
 import { Money } from '@/components/Money'
-import { Badge, Button, Card, Empty, Field, Spinner, inputClass } from '@/components/Ui'
+import {
+  Badge,
+  Button,
+  Card,
+  Empty,
+  Field,
+  Spinner,
+  inputClass,
+  tbodyRowClass,
+  theadRowClass,
+  thClass,
+} from '@/components/Ui'
+import { InfoTip, TipTerm } from '@/components/Tooltip'
 import { ErrorNotice } from '@/components/ErrorNotice'
 import { formatBusinessDate } from '@/lib/dates'
 
@@ -24,13 +36,19 @@ export function Entries() {
   return (
     <>
       <div>
-        <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Journal</h1>
-        <p className="text-sm text-slate-600 dark:text-slate-400">Most recent first. Nothing here can be edited.</p>
+        <div className="flex items-center gap-0.5">
+          <h1 className="text-lg font-semibold text-fg">Journal</h1>
+          <InfoTip term="the journal">
+            The append-only record of every entry ever posted, newest first. Rows are never edited or removed; a mistake
+            is corrected by posting its mirror, and both stay visible.
+          </InfoTip>
+        </div>
+        <p className="text-sm text-muted">Most recent first. Nothing here can be edited.</p>
       </div>
 
       <Card title="Filters">
         <div className="grid gap-3 sm:grid-cols-4">
-          <Field label="From">
+          <Field label="From" hint="Effective date, inclusive">
             <input
               type="date"
               className={inputClass}
@@ -38,7 +56,7 @@ export function Entries() {
               onChange={(e) => setFilters((f) => ({ ...f, from: e.target.value || undefined }))}
             />
           </Field>
-          <Field label="To">
+          <Field label="To" hint="Effective date, inclusive">
             <input
               type="date"
               className={inputClass}
@@ -60,7 +78,15 @@ export function Entries() {
               ))}
             </select>
           </Field>
-          <Field label="Source">
+          <Field
+            label="Source"
+            tip={
+              <InfoTip term="where an entry came from" align="end">
+                What put the entry in the journal: the API, a transfer, a reversal, an adjustment raised by
+                reconciliation, a statement import, or the demo seed.
+              </InfoTip>
+            }
+          >
             <select
               className={inputClass}
               value={filters.source ?? ''}
@@ -86,50 +112,80 @@ export function Entries() {
           <Empty>No entries match these filters.</Empty>
         ) : (
           <>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500 dark:border-slate-700">
-                  <th className="pb-2 font-medium">#</th>
-                  <th className="pb-2 font-medium">Effective</th>
-                  <th className="pb-2 font-medium">Description</th>
-                  <th className="pb-2 font-medium">Source</th>
-                  <th className="pb-2 text-right font-medium">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {entries.map((entry) => (
-                  <tr key={entry.id} className="border-b border-slate-100 dark:border-slate-800">
-                    <td className="py-1.5 font-mono text-xs">
-                      <Link to={`/entries/${entry.id}`} className="underline">
-                        {entry.sequenceNo}
-                      </Link>
-                    </td>
-                    <td className="py-1.5 text-xs">{formatBusinessDate(entry.effectiveDate ?? '')}</td>
-                    <td className="py-1.5">
-                      {entry.description}
-                      {entry.reversalOfEntryId && (
-                        <span className="ml-2">
-                          <Badge tone="warn">Reversal</Badge>
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-1.5 text-xs text-slate-500">{entry.source}</td>
-                    <td className="py-1.5 text-right">
-                      <Money value={entry.totalDebit} />
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <caption className="sr-only">Journal entries matching the current filters, most recent first.</caption>
+                <thead>
+                  <tr className={theadRowClass}>
+                    <th scope="col" aria-label="Sequence number" className={thClass}>
+                      <TipTerm
+                        term="the sequence number"
+                        tip="The position this entry holds in the journal. Numbers are handed out in order and never reused, so a gap would itself be evidence."
+                      >
+                        #
+                      </TipTerm>
+                    </th>
+                    <th scope="col" aria-label="Effective" className={thClass}>
+                      <TipTerm
+                        term="the effective date"
+                        tip="When the transaction happened in the world, which is not when it was written down. Reconciliation classifies the gap between the two as a timing difference rather than an error."
+                      >
+                        Effective
+                      </TipTerm>
+                    </th>
+                    <th scope="col" className={thClass}>
+                      Description
+                    </th>
+                    <th scope="col" className={thClass}>
+                      Source
+                    </th>
+                    <th scope="col" className={`${thClass} text-right`}>
+                      Amount
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {entries.map((entry) => (
+                    <tr key={entry.id} className={tbodyRowClass}>
+                      <th scope="row" className="py-1.5 text-left font-mono text-xs font-normal">
+                        <Link to={`/entries/${entry.id}`} className="text-accent underline">
+                          {entry.sequenceNo}
+                        </Link>
+                      </th>
+                      <td className="py-1.5 text-xs">{formatBusinessDate(entry.effectiveDate ?? '')}</td>
+                      <td className="py-1.5">
+                        {entry.description}
+                        {entry.reversalOfEntryId && (
+                          <span className="ml-2">
+                            <Badge tone="warn">Reversal</Badge>
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-1.5 text-xs text-muted">{entry.source}</td>
+                      <td className="py-1.5 text-right">
+                        <Money value={entry.totalDebit} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-            <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
-              <span className="text-xs text-slate-500">{entries.length} shown</span>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
+              <span className="flex items-center gap-0.5 text-xs text-muted">
+                {entries.length} shown
+                <InfoTip term="how this list pages">
+                  The server issues a cursor pointing at the last row sent, and the button asks for what follows it.
+                  There is no page 3 to link to: entries arrive while you read, and under numbered pages every row would
+                  shift down and page 2 would repeat rows from page 1.
+                </InfoTip>
+              </span>
               {journal.hasNextPage ? (
                 <Button variant="ghost" onClick={() => journal.fetchNextPage()} disabled={journal.isFetchingNextPage}>
                   {journal.isFetchingNextPage ? 'Loading…' : 'Load more'}
                 </Button>
               ) : (
-                <span className="text-xs text-slate-500">End of the journal.</span>
+                <span className="text-xs text-muted">End of the journal.</span>
               )}
             </div>
           </>

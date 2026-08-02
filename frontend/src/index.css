@@ -1,1 +1,169 @@
 @import 'tailwindcss';
+
+/*
+  One source of truth for colour.
+
+  Every surface and every piece of text in the app names a token below, and each
+  token is defined once per colour scheme. The alternative — pairing every
+  `text-slate-900` with a `dark:text-slate-100` at the call site — fails
+  silently: an element that simply inherits the browser default renders black,
+  which is invisible on a near-black page, and nothing in the build notices.
+  Defining `color` and `background-color` on <body> from tokens makes the
+  default correct, so a missed override is at worst dull rather than unreadable.
+
+  Contrast ratios against the surface a token is used on are noted beside each
+  one. Nothing here is below WCAG 2.2 AA: 4.5:1 for body text, 3:1 for borders,
+  large text and focus indicators. The small type in this UI is 12px, so the
+  4.5:1 threshold applies to nearly all of it — there is no "large text"
+  exemption to lean on.
+*/
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-solid: var(--solid);
+  --color-solid-fg: var(--solid-fg);
+  --color-good: var(--good);
+  --color-good-bg: var(--good-bg);
+  --color-good-bg-fg: var(--good-bg-fg);
+  --color-warn: var(--warn);
+  --color-warn-bg: var(--warn-bg);
+  --color-warn-bg-fg: var(--warn-bg-fg);
+  --color-bad: var(--bad);
+  --color-bad-bg: var(--bad-bg);
+  --color-bad-bg-fg: var(--bad-bg-fg);
+  --color-ring: var(--ring);
+}
+
+:root {
+  /*
+    Tells the browser which way to paint the controls it owns: the date
+    picker's calendar, a <select>'s dropdown, the file input's button, the
+    scrollbars. Without it those render light-on-light inside a dark form and
+    no amount of Tailwind fixes them, because they are not ours to style.
+  */
+  color-scheme: light;
+
+  --canvas: #f8fafc;
+  --surface: #ffffff;
+  --surface-2: #f1f5f9;
+
+  --line: #e2e8f0;
+  --line-strong: #94a3b8; /* 3.0:1 on --surface — the floor for a control border */
+
+  --fg: #0f172a; /* 17.4:1 on --surface */
+  --muted: #475569; /* 7.6:1 on --surface, 7.3:1 on --canvas */
+
+  --accent: #1d4ed8; /* 6.7:1 on --surface */
+  --accent-fg: #ffffff; /* 6.7:1 on --accent */
+
+  --solid: #0f172a; /* the neutral filled button */
+  --solid-fg: #f8fafc; /* 16.7:1 on --solid */
+
+  --good: #047857; /* 5.5:1 on --surface */
+  --good-bg: #d1fae5;
+  --good-bg-fg: #065f46; /* 6.8:1 on --good-bg */
+
+  --warn: #92400e; /* 7.1:1 on --surface */
+  --warn-bg: #fef3c7;
+  --warn-bg-fg: #92400e; /* 6.4:1 on --warn-bg */
+
+  --bad: #be123c; /* 6.3:1 on --surface */
+  --bad-bg: #ffe4e6;
+  --bad-bg-fg: #9f1239; /* 6.6:1 on --bad-bg */
+
+  --ring: #1d4ed8; /* 6.7:1 against every surface it is drawn on */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --canvas: #020617;
+    --surface: #0f172a;
+    --surface-2: #1e293b;
+
+    --line: #1e293b;
+    --line-strong: #64748b; /* 3.1:1 on --surface */
+
+    --fg: #f1f5f9; /* 16.6:1 on --surface */
+    --muted: #94a3b8; /* 7.0:1 on --surface, 8.6:1 on --canvas */
+
+    --accent: #93c5fd; /* 10.1:1 on --surface */
+    --accent-fg: #0f172a; /* 10.1:1 on --accent */
+
+    --solid: #e2e8f0;
+    --solid-fg: #0f172a; /* 14.7:1 on --solid */
+
+    --good: #34d399; /* 9.5:1 on --surface */
+    --good-bg: #064e3b;
+    --good-bg-fg: #6ee7b7; /* 6.3:1 on --good-bg */
+
+    --warn: #fbbf24; /* 10.9:1 on --surface */
+    --warn-bg: #78350f;
+    --warn-bg-fg: #fcd34d; /* 6.3:1 on --warn-bg */
+
+    --bad: #fb7185; /* 6.8:1 on --surface */
+    --bad-bg: #881337;
+    --bad-bg-fg: #fda4af; /* 5.0:1 on --bad-bg */
+
+    --ring: #93c5fd; /* 10.1:1 against every surface it is drawn on */
+  }
+}
+
+@layer base {
+  html {
+    background-color: var(--canvas);
+  }
+
+  body {
+    min-height: 100dvh;
+    background-color: var(--canvas);
+    color: var(--fg);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /*
+    A visible focus indicator on everything, not only on the controls someone
+    remembered. This is the whole of keyboard navigation for a data-entry tool:
+    2px at 3:1 or better, offset so it is never confused with a border, and
+    drawn outside the element so it cannot be clipped by a table cell.
+  */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  ::placeholder {
+    color: var(--muted);
+    opacity: 1;
+  }
+
+  ::selection {
+    background-color: var(--accent);
+    color: var(--accent-fg);
+  }
+
+  /* Amounts are compared down a column; they must not reflow as they change. */
+  table {
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}

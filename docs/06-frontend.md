@@ -181,8 +181,62 @@ gating is ergonomics, never security.
   Run by `.github/workflows/e2e.yml` on every push to either side — the one
   workflow without a path filter, because catching frontend/backend drift is its
   whole purpose.
-- **Accessibility** — `axe-core` in the Playwright run; keyboard-navigable
-  tables and forms are a requirement, not a nice-to-have, for a data-entry tool.
+- **Accessibility** — `axe-core` over every screen in the Playwright run,
+  **twice: once in each colour scheme**. Keyboard-navigable tables and forms are
+  a requirement, not a nice-to-have, for a data-entry tool.
+
+  Running it in one scheme only would have missed the bug that motivated
+  [§6.7](#67-colour-and-contrast) entirely: text left at the browser's default
+  black passes in light mode and disappears in dark mode, and a suite that only
+  ever saw the light one would have reported the app as clean.
+
+## 6.7 Colour and contrast
+
+Colour is defined once, in `src/index.css`, as a set of semantic tokens —
+`--canvas`, `--surface`, `--fg`, `--muted`, `--line`, plus a triplet per status
+tone. Each is given a value per colour scheme, and Tailwind's `@theme inline`
+compiles `bg-surface` and `text-muted` down to `var(--surface)` and
+`var(--muted)`, so the scheme switch happens at run time in one media query
+rather than at every call site.
+
+The alternative, and what was here first, is a `dark:` variant beside each
+colour utility. It fails in a way nothing catches: an element that names no
+colour at all inherits the browser default, which is black, which is invisible
+on a near-black page. There is no build error for the variant you forgot, and
+the failure only appears for readers whose operating system is set the other
+way from the author's. Setting `color` and `background-color` on `<body>` from
+tokens makes the *default* correct, which turns a missing override from
+unreadable into merely plain.
+
+Three consequences worth stating:
+
+- **`color-scheme` is declared**, so the controls the browser owns — the date
+  picker's calendar, a `<select>`'s dropdown, the file input's button,
+  scrollbars — are painted to match. No stylesheet can reach inside those, so
+  without the declaration they render light-on-light inside a dark form.
+- **Every ratio is recorded beside its token** and none is below WCAG 2.2 AA.
+  Most type in a dense back office is 12px, so the 4.5:1 threshold applies to
+  nearly all of it; there is no large-text exemption to lean on.
+- **Colour never carries information on its own.** The out-of-balance figure is
+  green *and* says "Balanced"; a break's severity is a tone *and* the word;
+  the waterfall's bars are `aria-hidden` decoration over the same figures
+  written as text beside them.
+
+Domain terms carry their definitions inline, through the `InfoTip` in
+`components/Tooltip.tsx` — a *credit* is not money arriving and an *effective
+date* is not when the row was written, and the honest fix is to explain the
+precise word rather than replace it with a vague one. It implements the
+WAI-ARIA tooltip pattern rather than the `title` attribute, which is unreachable
+by keyboard, invisible on touch and unstyleable, and it is dismissible with
+Escape, hoverable, and never on a timer — the three things WCAG §1.4.13 asks
+for.
+
+A tooltip trigger is deliberately kept *out* of any element whose accessible
+name matters: a button inside an `<h2>` renames the heading, and one inside a
+`<th>` renames every cell in the column beneath it. So `Card` takes `tip` as a
+prop beside the heading, headings put the trigger next to the `<h1>`, and the
+column headers that carry one state their plain term in an explicit
+`aria-label`.
 
 ---
 

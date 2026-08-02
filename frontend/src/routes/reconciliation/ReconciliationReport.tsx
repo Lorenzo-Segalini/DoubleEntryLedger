@@ -1,19 +1,16 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router'
-import {
-  useExplainBreak,
-  useReconciliationReport,
-  useResolveBreak,
-} from '@/features/reconciliation/queries'
+import { useExplainBreak, useReconciliationReport, useResolveBreak } from '@/features/reconciliation/queries'
 import { useAccounts } from '@/features/ledger/queries'
 import { useAuth } from '@/features/auth/useAuth'
-import { Badge, Button, Card, Empty, Field, Spinner, inputClass } from '@/components/Ui'
+import { Badge, Button, Card, Empty, Field, Spinner, inputClass, type Tone } from '@/components/Ui'
+import { InfoTip } from '@/components/Tooltip'
 import { ErrorNotice } from '@/components/ErrorNotice'
 import { currency, format, minor } from '@/lib/money'
 import { formatBusinessDate, formatInstant } from '@/lib/dates'
 import type { BreakStatus, BreakType, BridgeRow } from '@/api/types'
 
-const BREAK_TONE: Record<BreakType, 'neutral' | 'good' | 'warn' | 'bad'> = {
+const BREAK_TONE: Record<BreakType, Tone> = {
   MISSING_IN_LEDGER: 'bad',
   MISSING_IN_STATEMENT: 'bad',
   AMOUNT_MISMATCH: 'bad',
@@ -25,11 +22,36 @@ const BREAK_TONE: Record<BreakType, 'neutral' | 'good' | 'warn' | 'bad'> = {
   OPENING_BALANCE_MISMATCH: 'warn',
 }
 
-const STATUS_TONE: Record<BreakStatus, 'neutral' | 'good' | 'warn' | 'bad'> = {
+/*
+  What each break type actually means.
+
+  The codes are precise and unhelpful to anyone meeting them for the first
+  time, and they are the entire vocabulary of this screen — so each one carries
+  its definition rather than being softened into prose.
+*/
+const BREAK_HELP: Record<BreakType, string> = {
+  MISSING_IN_LEDGER: 'The bank shows this movement and the journal has no entry for it. Usually a charge nobody booked.',
+  MISSING_IN_STATEMENT: 'The journal has an entry the bank never shows. Either it has not cleared yet, or it should not have been posted.',
+  AMOUNT_MISMATCH: 'The same transaction appears on both sides for different amounts — a fee taken off the top, or a keying error.',
+  DUPLICATE_IN_LEDGER: 'One bank movement, two journal entries. One of them needs reversing.',
+  DUPLICATE_IN_STATEMENT: 'The statement lists the same movement twice against a single journal entry.',
+  TIMING_DIFFERENCE: 'Both sides agree on the transaction and disagree on the date. It corrects itself next period; nothing needs posting.',
+  CURRENCY_MISMATCH: 'The statement line is in a different currency from the account. No amount is comparable until that is settled.',
+  OPENING_BALANCE_MISMATCH: 'The statement declares an opening balance the ledger did not have on that date, so every figure after it is offset by the same gap.',
+}
+
+const STATUS_TONE: Record<BreakStatus, Tone> = {
   OPEN: 'bad',
   EXPLAINED: 'warn',
   RESOLVED: 'good',
   WRITTEN_OFF: 'neutral',
+}
+
+const STATUS_HELP: Record<BreakStatus, string> = {
+  OPEN: 'Nobody has said why this difference exists yet.',
+  EXPLAINED: 'A reason has been recorded and no money moved. Correct when the two sides will agree on their own.',
+  RESOLVED: 'An adjusting entry was posted through the ordinary posting service, so it is balanced, attributed and reversible like any other.',
+  WRITTEN_OFF: 'Accepted as a loss too small to chase, with the reason recorded beside it.',
 }
 
 export function ReconciliationReportView() {
@@ -47,10 +69,10 @@ export function ReconciliationReportView() {
   return (
     <>
       <div>
-        <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+        <h1 className="text-lg font-semibold text-fg">
           {it.accountCode} · {it.accountName}
         </h1>
-        <p className="text-sm text-slate-600 dark:text-slate-400">
+        <p className="text-sm text-muted">
           {formatBusinessDate(it.periodStart ?? '')} – {formatBusinessDate(it.periodEnd ?? '')} · matched{' '}
           {it.matchedCount} of {(it.matchedCount ?? 0) + (it.unmatchedStatementLines ?? 0)} statement lines
         </p>
@@ -63,6 +85,12 @@ export function ReconciliationReportView() {
       */}
       <Card
         title="Bridge"
+        tip={
+          <InfoTip term="a bridge">
+            The walk from what the ledger says to what the bank says, one explained difference at a time. It closes only
+            if the explanations account for the gap exactly.
+          </InfoTip>
+        }
         actions={
           <Badge tone={it.bridgeBalanced ? 'good' : 'bad'}>
             {it.bridgeBalanced ? 'Explanations account for the difference' : 'BRIDGE DOES NOT CLOSE'}
@@ -70,42 +98,55 @@ export function ReconciliationReportView() {
         }
       >
         <div className="grid gap-2 text-sm sm:grid-cols-3">
-          <Figure label="Ledger closing" value={money(it.ledgerClosingMinor ?? 0)} />
+          <Figure
+            label="Ledger closing"
+            value={money(it.ledgerClosingMinor ?? 0)}
+            tip="What this account comes to in the journal on the last day of the period."
+          />
           <Figure
             label="Difference"
             value={money(it.differenceMinor ?? 0)}
             tone={it.differenceMinor === 0 ? 'good' : 'bad'}
+            tip="Statement closing minus ledger closing. Every unit of it has to be accounted for by a break below; a difference of zero is the goal, but an explained difference is an acceptable outcome."
           />
-          <Figure label="Statement closing" value={money(it.statementClosingMinor ?? 0)} />
+          <Figure
+            label="Statement closing"
+            value={money(it.statementClosingMinor ?? 0)}
+            tip="What the bank declares the account came to, taken from the imported file rather than computed."
+          />
         </div>
 
-        <Waterfall
-          rows={it.bridge ?? []}
-          start={it.ledgerClosingMinor ?? 0}
-          money={money}
-        />
+        <Waterfall rows={it.bridge ?? []} start={it.ledgerClosingMinor ?? 0} money={money} />
 
-        <p className="mt-4 border-t border-slate-100 pt-3 text-sm dark:border-slate-800">
-          <span className="text-slate-500">Ledger closing</span> {money(it.ledgerClosingMinor ?? 0)}{' '}
-          <span className="text-slate-500">+ explanations</span> {money(it.bridgeTotalMinor ?? 0)}{' '}
-          <span className="text-slate-500">=</span>{' '}
+        <p className="mt-4 border-t border-line pt-3 text-sm">
+          <span className="text-muted">Ledger closing</span> {money(it.ledgerClosingMinor ?? 0)}{' '}
+          <span className="text-muted">+ explanations</span> {money(it.bridgeTotalMinor ?? 0)}{' '}
+          <span className="text-muted">=</span>{' '}
           <strong>{money((it.ledgerClosingMinor ?? 0) + (it.bridgeTotalMinor ?? 0))}</strong>{' '}
-          <span className="text-slate-500">vs statement</span> {money(it.statementClosingMinor ?? 0)}
+          <span className="text-muted">vs statement</span> {money(it.statementClosingMinor ?? 0)}
         </p>
 
         {!it.bridgeBalanced && (
-          <p className="mt-2 text-sm text-rose-700 dark:text-rose-400">
+          <p className="mt-2 text-sm font-medium text-bad">
             The explanations do not account for the difference. That is a defect in the matching engine — a
             double-consumed line, a sign error, a missed classification — not a judgement call for an operator.
           </p>
         )}
       </Card>
 
-      <Card title="Breaks">
+      <Card
+        title="Breaks"
+        tip={
+          <InfoTip term="a break">
+            One difference between the statement and the journal, classified by why it exists. A break is a question to
+            answer, not necessarily a mistake — a timing difference is a break that will resolve itself.
+          </InfoTip>
+        }
+      >
         {(it.bridge ?? []).length === 0 ? (
           <Empty>Nothing to explain — the statement agrees with the journal.</Empty>
         ) : (
-          <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+          <ul className="divide-y divide-line">
             {(it.bridge ?? []).map((row) => (
               <BreakRow key={row.breakId} importId={id} row={row} money={money} />
             ))}
@@ -113,27 +154,31 @@ export function ReconciliationReportView() {
         )}
       </Card>
 
-      <p className="text-xs text-slate-500">Generated {it.generatedAt ? formatInstant(it.generatedAt) : '—'}.</p>
+      <p className="text-xs text-muted">Generated {it.generatedAt ? formatInstant(it.generatedAt) : '—'}.</p>
     </>
   )
 }
 
-function Figure({ label, value, tone }: { label: string; value: string; tone?: 'good' | 'bad' }) {
-  const colour =
-    tone === 'good'
-      ? 'text-emerald-700 dark:text-emerald-400'
-      : tone === 'bad'
-        ? 'text-rose-700 dark:text-rose-400'
-        : 'text-slate-900 dark:text-slate-100'
+function Figure({ label, value, tone, tip }: { label: string; value: string; tone?: 'good' | 'bad'; tip: string }) {
+  const colour = tone === 'good' ? 'text-good' : tone === 'bad' ? 'text-bad' : 'text-fg'
   return (
     <div>
-      <p className="text-xs text-slate-500">{label}</p>
+      <p className="flex items-center gap-0.5 text-xs text-muted">
+        {label}
+        <InfoTip term={label.toLowerCase()}>{tip}</InfoTip>
+      </p>
       <p className={`text-xl font-semibold tabular-nums ${colour}`}>{value}</p>
     </div>
   )
 }
 
-/** Each bar is one break's contribution, drawn to scale against the largest. */
+/**
+ * Each bar is one break's contribution, drawn to scale against the largest.
+ *
+ * The bar is decoration: it is marked `aria-hidden`, and the figure it depicts
+ * is in the cell beside it as text. Direction is carried by the sign in that
+ * text, so the red/green of the bars adds emphasis and never information.
+ */
 function Waterfall({
   rows,
   start,
@@ -157,15 +202,15 @@ function Waterfall({
         const width = Math.max(2, (Math.abs(delta) / largest) * 100)
         return (
           <li key={row.breakId} className="flex items-center gap-2 text-xs">
-            <span className="w-48 shrink-0 truncate text-slate-600 dark:text-slate-400">{row.type}</span>
-            <span className="flex-1">
+            <span className="w-48 shrink-0 truncate text-muted">{row.type}</span>
+            <span aria-hidden="true" className="flex-1">
               <span
-                className={`block h-3 rounded ${delta < 0 ? 'bg-rose-400' : 'bg-emerald-400'}`}
+                className={`block h-3 rounded ${delta < 0 ? 'bg-bad' : 'bg-good'}`}
                 style={{ width: `${width}%` }}
               />
             </span>
             <span className="w-28 shrink-0 text-right tabular-nums">{money(delta)}</span>
-            <span className="w-32 shrink-0 text-right tabular-nums text-slate-500">{money(running)}</span>
+            <span className="w-32 shrink-0 text-right tabular-nums text-muted">{money(running)}</span>
           </li>
         )
       })}
@@ -192,25 +237,30 @@ function BreakRow({
   const [counterAccount, setCounterAccount] = useState('5000')
   const [idempotencyKey] = useState(() => crypto.randomUUID())
 
+  const type = (row.type ?? 'MISSING_IN_LEDGER') as BreakType
   const status = (row.status ?? 'OPEN') as BreakStatus
   const closed = status === 'RESOLVED' || status === 'WRITTEN_OFF'
 
   return (
     <li className="py-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge tone={BREAK_TONE[(row.type ?? 'MISSING_IN_LEDGER') as BreakType]}>{row.type}</Badge>
+        <Badge tone={BREAK_TONE[type]}>{row.type}</Badge>
+        <InfoTip term={`the ${type} classification`}>{BREAK_HELP[type]}</InfoTip>
+
         <Badge tone={STATUS_TONE[status]}>{status}</Badge>
-        <span className="text-sm text-slate-700 dark:text-slate-300">{row.detail}</span>
-        <span className="ml-auto tabular-nums text-sm font-medium">{money(row.deltaMinor ?? 0)}</span>
+        <InfoTip term={`the ${status} state`}>{STATUS_HELP[status]}</InfoTip>
+
+        <span className="text-sm text-fg">{row.detail}</span>
+        <span className="ml-auto text-sm font-medium tabular-nums">{money(row.deltaMinor ?? 0)}</span>
         {can('reconcile') && !closed && (
-          <Button variant="ghost" onClick={() => setOpen((o) => !o)}>
+          <Button variant="ghost" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
             {open ? 'Close' : 'Act'}
           </Button>
         )}
       </div>
 
       {open && !closed && (
-        <div className="mt-3 rounded border border-slate-200 p-3 dark:border-slate-700">
+        <div className="mt-3 rounded border border-line bg-surface-2 p-3">
           <Field label="Explanation" hint="What an auditor reads six months from now.">
             <input className={inputClass} value={explanation} onChange={(e) => setExplanation(e.target.value)} />
           </Field>
@@ -225,12 +275,11 @@ function BreakRow({
             </Button>
 
             <div className="flex items-end gap-2">
-              <Field label="Counter account">
-                <select
-                  className={inputClass}
-                  value={counterAccount}
-                  onChange={(e) => setCounterAccount(e.target.value)}
-                >
+              <Field
+                label="Counter account"
+                hint="Where the other side of the adjusting entry lands"
+              >
+                <select className={inputClass} value={counterAccount} onChange={(e) => setCounterAccount(e.target.value)}>
                   {(accounts.data ?? []).map((account) => (
                     <option key={account.id} value={account.code}>
                       {account.code} · {account.name}
@@ -254,7 +303,7 @@ function BreakRow({
             </div>
           </div>
 
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-2 text-xs text-muted">
             Explaining moves no money — correct for a timing difference. Resolving posts an adjusting entry through the
             ordinary posting service, so it is an entry like any other: balanced, attributed and reversible.
           </p>
@@ -264,9 +313,9 @@ function BreakRow({
           </div>
 
           {resolve.data && (
-            <p className="mt-2 text-sm text-emerald-700 dark:text-emerald-400">
+            <p className="mt-2 text-sm text-good">
               Posted as{' '}
-              <Link to={`/entries/${resolve.data.adjustingEntryId}`} className="underline">
+              <Link to={`/entries/${resolve.data.adjustingEntryId}`} className="text-accent underline">
                 an adjusting entry
               </Link>
               .

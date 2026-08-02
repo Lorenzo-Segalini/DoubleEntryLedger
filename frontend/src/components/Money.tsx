@@ -22,7 +22,9 @@ export function Money({
 
   const minor = value.amountMinor ?? 0
   const negative = minor < 0
-  const tone = negative ? 'text-rose-700 dark:text-rose-400' : ''
+  // Colour reinforces the sign, it does not replace it: the minus is in the
+  // server's `amount` string, so a red amount and a monochrome one read alike.
+  const tone = negative ? 'text-bad' : ''
 
   return (
     <span className={`tabular-nums ${tone} ${className}`}>
