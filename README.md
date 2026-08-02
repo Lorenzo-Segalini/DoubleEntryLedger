@@ -130,7 +130,7 @@ Send it again with the same key and you get `200` with
 Apple Silicon notes and troubleshooting: [`docs/00-local-setup.md`](docs/00-local-setup.md).
 
 ```bash
-git clone https://github.com/LorenzoSegaliniAtex/DoubleEntryLedger.git
+git clone https://github.com/Lorenzo-Segalini/DoubleEntryLedger
 cd DoubleEntryLedger
 cp infra/.env.example infra/.env
 pnpm install

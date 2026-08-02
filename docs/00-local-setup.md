@@ -190,7 +190,7 @@ docker info           # must not error
 ## 0.3 First run
 
 ```bash
-git clone https://github.com/LorenzoSegaliniAtex/DoubleEntryLedger.git
+git clone https://github.com/Lorenzo-Segalini/DoubleEntryLedger
 cd DoubleEntryLedger
 
 cp infra/.env.example infra/.env
